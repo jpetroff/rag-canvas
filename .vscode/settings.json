@@ -1,0 +1,7 @@
+{
+    "find-it-faster.general.hideTerminalAfterSuccess": false,
+    "find-it-faster.general.restoreFocusTerminal": true,
+    "typescript.tsdk": "./web/node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "editor.tabSize": 2
+}
