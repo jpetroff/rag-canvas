@@ -27,7 +27,10 @@
 				"dbaeumer.vscode-eslint",
 				"bradlc.vscode-tailwindcss",
 				"stivo.tailwind-fold",
-				"heybourn.headwind"
+				"heybourn.headwind",
+				"rvest.vs-code-prettier-eslint",
+				"infeng.vscode-react-typescript",
+				"tahabasri.snippets"
 			]
 		}
 	}

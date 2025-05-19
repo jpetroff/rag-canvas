@@ -1,0 +1,8 @@
+@reference 'tailwindcss';
+
+@layer theme {
+  [data-component=Button] {
+    --color-scrollbar: transparent;
+    --color-scrollbar-thumb: var(--color-slate-400)
+  }
+}

@@ -1,30 +1,30 @@
-import { create } from "zustand";
+import {
+  create
+} from 'zustand'
 
-
-type EditorStore = {
-  currentEditorContent: string,
-  editorContentVersions: string[],
-  lastChatMessage: string,
+type ConversationStore = {
+  currentEditorContent: string
+  editorContentVersions: string[]
+  lastChatMessage: string
   chatHistory: string[]
-  
+
   updateEditorContent: (content: string) => void
 }
 
-const useEditorStore = create<EditorStore>()((set) => ({
-  currentEditorContent: "This is your content",
+const useConversationStore = create<ConversationStore>()((set) => ({
+  currentEditorContent: 'This is your content',
   editorContentVersions: [],
-  lastChatMessage: "",
+  lastChatMessage: '',
   chatHistory: [],
 
   updateEditorContent: (content) =>
     set(
-      (state) : Partial<EditorStore> => (
-        { 
-          currentEditorContent: content,
-          editorContentVersions: [...state.editorContentVersions, content]
-        }
-      )
+      (state): Partial<ConversationStore> => ({
+        currentEditorContent: content,
+        editorContentVersions: [...state.editorContentVersions, content],
+      })
     ),
-}));
+}))
 
-export default useEditorStore
+
+export default useConversationStore

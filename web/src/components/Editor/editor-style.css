@@ -1,0 +1,5 @@
+@reference "tailwindcss";
+
+[data-component=Editor] {
+  --max-editor-width: 960px;
+}

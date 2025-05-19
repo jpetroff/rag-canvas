@@ -1,9 +1,73 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme inline static {
-    --color-custom: var(--color-slate-50);
+  /* Text */
+  --color-text-0: var(--color-zinc-900);
+  --color-text-1: var(--color-zinc-800);
+  --color-text-2: var(--color-zinc-700);
+
+  /* Foreground */
+  --color-f0: var(--color-zinc-600);
+  --color-f1: var(--color-zinc-400);
+  --color-f2: var(--color-zinc-400);
+
+  /* Solid background */
+  --color-b0-solid-neutral: #fff;
+  --color-b1-solid-neutral: var(--color-zinc-50);
+  --color-b2-solid-neutral: var(--color-zinc-100);
+
+  /* Translucent background */
+  --color-b0-alpha-neutral: --alpha(var(--color-b0-solid-neutral) / 97%);
+
+  /* Shadow */
+  --shadow-s0-neutral: 0 2px 8px -2px --alpha(var(--color-zinc-800) / 12%);
+
+  /* Ring */
+  --color-r0-neutral: --alpha(var(--color-zinc-700) / 6%);
+
+  /* Line */
+  --color-l0-neutral: var(--color-zinc-300);
+  --color-l1-neutral: var(--color-zinc-300);
+
+  /* Ghost Button */
+  --color-ghost-btn-b: transparent;
+  --color-ghost-btn-b-hover: var(--color-zinc-100);
+  --color-ghost-btn-b-active: var(--color-zinc-200);
+  --color-ghost-btn-f: var(--color-zinc-700);
+  --color-ghost-btn-f-hover: var(--color-zinc-800);
+  --color-ghost-btn-f-active: var(--color-zinc-950);
+
+  /* Toggle Button */
+  --color-pressed-btn-b: var(--color-indigo-100);
+  --color-pressed-btn-b-hover: var(--color-indigo-200);
+  --color-pressed-btn-b-active: var(--color-indigo-200);
+  --color-pressed-btn-f: var(--color-indigo-800);
+  --color-pressed-btn-f-hover: var(--color-indigo-900);
+  --color-pressed-btn-f-active: var(--color-indigo-900);
+
+  /* General Button */
+  --size-btn-xs: 1rem;
+  --size-btn-sm: 1.5rem;
+  --size-btn-md: 1.75rem;
+  --size-btn-lg: 2rem;
+
+  /* Icons */
+  --size-icon-xs: 1rem;
+  --size-icon-sm: 1.25rem;
+  --size-icon-md: 1.5rem;
+  --size-icon-lg: 1.75rem;
+
 }
 
-[data-theme=dark] {
-    --color-custom: var(--color-slate-900);
+[data-theme='dark'] {
+  /* Text */
+  --color-text: var(--color-zinc-50);
+
+  /* Foreground */
+  --color-foreground-muted: var(--color-zinc-500);
+}
+
+:root {
+  color: var(--color-text-0);
+  font-size: 16px;
 }

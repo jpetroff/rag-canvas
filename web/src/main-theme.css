@@ -1,9 +1,0 @@
-@reference "tailwindcss";
-
-@theme inline static {
-  --color-custom: var(--color-slate-50);
-}
-
-[data-theme=dark] {
-  --color-custom: var(--color-slate-900);
-}
