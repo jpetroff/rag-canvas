@@ -30,7 +30,8 @@
 				"heybourn.headwind",
 				"rvest.vs-code-prettier-eslint",
 				"infeng.vscode-react-typescript",
-				"tahabasri.snippets"
+				"tahabasri.snippets",
+				"ms-python.black-formatter"
 			]
 		}
 	}

@@ -1,6 +1,10 @@
 fastapi
+websockets
+uvicorn
 pydantic
 python-multipart
+rich
+dotenv 
 
 # Llama Index for RAG
 llama-index
@@ -13,3 +17,10 @@ llama-index-tools-duckduckgo
 json-repair
 llama-index-postprocessor-colbert-rerank
 llama-index-storage-docstore-mongodb
+
+# observability
+langfuse
+
+#utils
+black
+pylint
