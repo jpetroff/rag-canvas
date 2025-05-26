@@ -2,12 +2,11 @@ import uvicorn
 import fastapi
 from dotenv import dotenv_values
 import rich
-from apis.openai import OpenAIApi, API_OBSERVABILITY_SERVICE
 from typing import Dict, Any, Optional
 
 env = dotenv_values(".env")
 env_keys = env.keys()
-from apis.canvas import CanvasApi
+from apis.canvas import CanvasApi, API_OBSERVABILITY_SERVICE
 from server_app import app
 
 """
@@ -27,7 +26,11 @@ if (
         "host": env["LANGFUSE_HOST"],
     }
 
-CanvasApi(prefix="/api/canvas")
+CanvasApi(
+    prefix="/api/canvas",
+    observability=API_OBSERVABILITY_SERVICE.LANGFUSE,
+    observability_kwargs=observability_kwargs,
+)
 
 if __name__ == "__main__":
     host = env.get("HOST") or "0.0.0.0"

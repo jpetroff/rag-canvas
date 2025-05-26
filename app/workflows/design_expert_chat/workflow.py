@@ -297,7 +297,6 @@ class DesignRAGWorkflow(Workflow):
             content=content.format(query=query), messages=chat_history
         )
 
-        self.llm.as_structured_llm
         result = self.llm.chat(messages=chat_history)
         if result.message.content is None:
             raise Exception(

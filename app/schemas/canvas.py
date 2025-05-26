@@ -1,10 +1,7 @@
 import uuid
 from enum import Enum
 from typing import (
-    Annotated,
-    AsyncGenerator,
-    Dict,
-    Iterator,
+    Any,
     List,
     Literal,
     Optional,
@@ -18,6 +15,25 @@ from llama_index.core.base.llms.types import MessageRole
 
 def shortuuid():
     return uuid.uuid4().hex[:6]
+
+
+class DefaultResponse(BaseModel):
+    type: Union[
+        Literal["error"],
+        Literal["completion.response"],
+        Literal["completion.chunk"],
+        Literal["completion.usage"],
+        Literal["completion.sources"],
+        Literal["completion.hitl.request"],  # Human-In-The-Loop request
+        Literal["event"],
+        Literal["confirmation"],
+        str,
+    ] = Field()
+    payload: Optional[Any] = Field(default=None)  # Any JSON-serializable value
+    content: Optional[Union[str, float, int]] = Field(default=None)
+
+    def dump(self):
+        return super().model_dump(exclude_unset=True)
 
 
 class TextHighlight(BaseModel):
@@ -50,6 +66,18 @@ class ChatCompletionRequest(BaseModel):
 
     knowledge: List[KnowledgeGraphOrStorage] = Field()
 
+    model_id: Union[Literal["default"], str] = Field(
+        default="default", validation_alias="modelId"
+    )
+
+    embed_model_id: Union[Literal["default"], str] = Field(
+        default="default", validation_alias="embedModelId"
+    )
+
+    workflow_id: Union[Literal["default"], str] = Field(
+        default="default", validation_alias="workflowId"
+    )
+
     highlighted_text: Optional[TextHighlight] = Field(
         default=None,
         description="Highlighted text attached to the message",
@@ -79,3 +107,7 @@ class ChatCompletionRequest(BaseModel):
     )
 
     stream: Optional[bool] = Field(default=True)
+
+    temperature: Optional[float] = Field(default=0.1)
+
+    max_tokens: Optional[int] = Field(default=1024 * 5, validation_alias="maxTokens")
