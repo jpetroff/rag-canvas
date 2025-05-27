@@ -55,7 +55,7 @@ class DesignExpertWorkflowConfig(BaseModel):
         embed_model = OllamaEmbedding(
             model_name=env.get("EMBEDDING_MODEL", ""),
             base_url=env.get("OLLAMA_URI", ""),
-            embed_batch_size=1024,
+            embed_batch_size=256,
         )
 
         # llama_debug = LlamaDebugHandler(print_trace_on_end=True)

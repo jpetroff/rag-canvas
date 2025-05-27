@@ -64,6 +64,14 @@ Do not add anything that is NOT contained in the context below.
 </context>
 """
 
+RECENT_MESSAGES_SNIPPET = """A few of the recent messages in the chat history are:
+<recent-messages>
+{recent_messages}
+</recent-messages>
+"""
+
+NO_RECENT_MESSAGES = "There are no previous messages with the user."
+
 NO_ARTIFACT_ROUTES: Annotated[
     str, "Format string with no parameters"
 ] = """
@@ -156,26 +164,25 @@ Answer: """
 GENERATE_PATH_PROMPT: Annotated[
     str,
     "Format string with parameters: app_context: str, artifact_options: str, recent_messages: str, current_artifact: str",
-] = """# Path Generation Task
+] = """You are an assistant tasked with routing the users query based on their most recent message.
+You should look at this message in isolation and determine where to best route there query.
 
-## Objective
-Analyze the user's most recent message and determine the optimal routing path.
+Use this context about the application and its features when determining where to route to:
+{app_context}
 
-{app_context_snippet}
-
-### Available Options
+Your options are as follows:
 <options>
-{path_options}
+{route_options}
 </options>
 
-{conversation_snippet}
+{recent_messages}
 
-{artifact_snippet}
+If you have previously generated an artifact and the user asks a question that seems actionable, the likely choice is to take that action and rewrite the artifact.
 
-## Routing Guidelines
-- If a previous artifact exists and the query is actionable, prioritize artifact modification
-- Consider the full context when determining the routing path
-- Base the decision primarily on the most recent message
+{artifact}
+
+User query:
+{user_query}
 
 Answer: """
 
@@ -204,69 +211,66 @@ Context:
 User Request:
 {user_query}
 
-Wrap the text of the artifact that answers the user query in <artifact>...</artifact> to separate any preamble or additional text. It will be used separately from the answer as a document.
+Ensure you ONLY reply with the rewritten artifact and NO other content. Mark the beginning of the artifact document as |artifact|> and the end as <|artifact| so it can be extracted and used separately from the answer as a standalone document.
 Answer: """
 
 UPDATE_ARTIFACT_PROMPT: Annotated[
     str,
     "Format string with parameters: highlighted_text: str, artifact: str, retrieved_context: str, user_query: str",
-] = """# Artifact Update Task
+] = """You are an AI assistant, and the user has requested you make an update to a specific part of an artifact you generated in the past.
 
-## Objective
-Update a specific portion of an existing artifact based on user request.
-
-## Content to Update
+Here is the relevant part of the artifact, with the highlighted text between <highlight> tags:
 <highlight>{highlighted_text}</highlight>
 
-## Context
-### Full Artifact (Reference Only)
+Use the full artifact only for context, do not reply with it:
 <artifact>
 {artifact}
 </artifact>
 
+Please update the highlighted text based on the user's request.
+
+Follow these rules and guidelines:
+<rules-guidelines>
+- ONLY respond with the updated text, not the entire artifact.
+- Do not include the <highlight> tags, or extra content in your response.
+- Do not wrap it in any XML tags you see in this prompt.
+- Do NOT wrap in markdown blocks (e.g triple backticks) unless the highlighted text ALREADY contains markdown syntax.
+  If you insert markdown blocks inside the highlighted text when they are already defined outside the text, you will break the markdown formatting.
+- You should use proper markdown syntax when appropriate, as the text you generate will be rendered in markdown.
+- NEVER generate content that is not included in the highlighted text. Whether the highlighted text be a single character, split a single word, an incomplete sentence, or an entire paragraph, you should ONLY generate content that is within the highlighted text.
+</rules-guidelines>
+
 {retrieved_context_snippet}
 
-## Update Guidelines
-- Respond ONLY with the updated text
-- Do not include <highlight> tags
-- Do not include XML tags from this prompt
-- Use markdown syntax appropriately
-- Do not add markdown blocks unless the highlighted text already contains markdown
-- Stay strictly within the boundaries of the highlighted text
-- Preserve existing markdown formatting if present
+Use the user's recent message below to make the edit:
 
-## User Request
 {user_query}
 
 Answer: """
 
 REWRITE_ARTIFACT_PROMPT: Annotated[
     str, "Format string with parameters: artifact: str, retrieved_context: str"
-] = """# Artifact Rewrite Task
+] = """You are an AI assistant, and the user has requested you make an update to an artifact you generated in the past.
 
-## Objective
-Completely rewrite an existing artifact based on user request.
-
-## Current Artifact
+Here is the current content of the artifact:
 <artifact>
 {artifact}
 </artifact>
 
+Please update the artifact based on the user's request.
+
+Follow these rules and guidelines:
+<rules-guidelines>
+- You should respond with the ENTIRE updated artifact, with no additional text before and after.
+- Do not wrap it in any XML tags you see in this prompt.
+- You should use proper markdown syntax when appropriate, as the text you generate will be rendered in markdown. UNLESS YOU ARE WRITING CODE.
+- When you generate code, a markdown renderer is NOT used so if you respond with code in markdown syntax, or wrap the code in tipple backticks it will break the UI for the user.
+- If generating code, it is imperative you never wrap it in triple backticks, or prefix/suffix it with plain text. Ensure you ONLY respond with the code.
+</rules-guidelines>
+
 {retrieved_context_snippet}
 
-## Output Guidelines
-- Respond with the ENTIRE updated artifact
-- Do not include any text before or after the artifact
-- Do not include XML tags from this prompt
-- For text content:
-  - Use appropriate markdown syntax
-  - Ensure proper formatting
-- For code content:
-  - Do not use markdown syntax
-  - Do not wrap in triple backticks
-  - Do not add any prefix or suffix text
-  - Return only the code itself
-
+Ensure you ONLY reply with the rewritten artifact and NO other content. Mark the beginning of the artifact document as |artifact|> and the end as <|artifact| so it can be extracted and used separately from the answer as a standalone document.
 Answer: """
 
 FOLLOWUP_PROMPT: Annotated[
@@ -305,5 +309,20 @@ Here is the artifact you generated:
 This message should be very short. Never generate more than 2-3 short sentences. Your tone should be somewhat formal, but still friendly. Remember, you're an AI assistant.
 
 Do NOT include any tags, or extra text before or after your response. Do NOT prefix your response. Your response to this message should ONLY contain the description/followup message.
+
+Answer: """
+
+
+RESPOND_TO_QUERY_PROMPT = """You are an AI assistant answering user query. You have external knowledge to rely on when answering if the context is provided. 
+
+{app_context}
+
+{recent_messages}
+
+{retrieval_context_snippet}
+
+User query:
+
+{user_query}
 
 Answer: """

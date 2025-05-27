@@ -3,7 +3,9 @@ import inspect
 from pygments import highlight
 import rich
 from llama_index.core.schema import NodeWithScore
-from typing import List
+from typing import List, TypeVar
+
+T = TypeVar("T")
 
 
 def log(
@@ -20,13 +22,21 @@ def log(
 
     timestamp = datetime.datetime.now().strftime("%H:%M:%S · %d.%m.%y")
 
-    _content = content
-    # if truncate and len(content) > TRUNCATE_LEN:
-    #     _content = content[:TRUNCATE_LEN] + "[normal][dim]<...>[/]"
+    _content = " ".join(
+        [
+            content,
+            ("Next:[purple]" + next + "[/]") if next else "",
+        ]
+    ).strip(" ")
+
+    _runtime_meta = " executing ".join([user, workflow]).strip(" ")
 
     log_str = (
-        f"[yellow]{(step_name+'():').ljust(32)}[/][dim]{user}—→{workflow}[/]\n"
-        f"[dim]{timestamp.ljust(32)}[/]{_content}{ (' Next:[purple]'+next+'[/]') if next else ''}"
+        f"[dim]{timestamp.ljust(32)}[/]"
+        f"[dim]{_runtime_meta}[/]"
+        "\n"
+        f"[yellow]{(step_name+'():').ljust(32)}[/]"
+        f"{_content}"
     )
     rich.get_console().print(log_str, highlight=False, crop=True)
 
@@ -41,3 +51,7 @@ def format_nodes(nodes: List[NodeWithScore]) -> str:
             f"</reference>\n"
         )
     return result
+
+
+def last_n(list: List[T], num: int = 1) -> List[T]:
+    return list[-num:] if num > 0 else []

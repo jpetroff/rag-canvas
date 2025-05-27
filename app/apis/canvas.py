@@ -30,6 +30,7 @@ from workflows.design_expert import (
 
 from langfuse.llama_index import LlamaIndexInstrumentor
 from langfuse.llama_index._instrumentor import StatefulTraceClient
+import logging
 
 
 class API_OBSERVABILITY_SERVICE(str, Enum):
@@ -61,6 +62,8 @@ class CanvasApi:
             self.instrumentor = LlamaIndexInstrumentor(
                 debug=False, **self.observability_kwargs
             )
+            langfuse_logger = logging.getLogger("langfuse")
+            langfuse_logger.setLevel("CRITICAL")
 
         app.add_websocket_route(
             path=self._merge_path(self.ws_completion_endpoint),
@@ -93,6 +96,7 @@ class CanvasApi:
         with self.instrumentor.observe(trace_id=f"workflow-{shortuuid()}") as trace:
             await self.completion(websocket, trace)
         self.instrumentor.stop()
+        self.instrumentor.flush()
 
     async def completion(
         self, websocket: WebSocket, trace: Optional[StatefulTraceClient] = None
@@ -166,9 +170,7 @@ class CanvasApi:
             )
 
             if trace:
-                trace.event(
-                    name="DesignExpertWorkflow.Complete", output=accumulated_response
-                )
+                trace.event(name="Generation.Complete", output=accumulated_response)
 
         except Exception as exception:
             await websocket.send_json(

@@ -35,14 +35,14 @@ from langfuse.llama_index import LlamaIndexInstrumentor
 import json_repair.json_parser
 from networkx import nodes
 from pydantic import BaseModel, Field, PrivateAttr
-from typing import Optional
+from typing import Generator, Literal, Optional, Union
 
 from typing import List, Any, Dict
 
 from schemas.canvas import Artifact
 from libs.crawl4ai import Crawl4AiReader, string_metadata_dict
 
-from .utils import format_nodes, log
+from .utils import format_nodes, last_n, log
 
 from . import prompts
 
@@ -85,6 +85,18 @@ class PostprocessNodes(Event):
 
 
 class GenerateArtifact(Event):
+    nodes: List[NodeWithScore]
+
+
+class RewriteArtifact(Event):
+    nodes: List[NodeWithScore]
+
+
+class UpdateArtifact(Event):
+    nodes: List[NodeWithScore]
+
+
+class RespondToQuery(Event):
     nodes: List[NodeWithScore]
 
 
@@ -425,15 +437,81 @@ class DesignExpertWorkflow(Workflow):
         return GeneratePath(nodes=nodes_reordered)
 
     @step
-    async def generate_path(self, ctx: Context, ev: GeneratePath) -> GenerateArtifact:
+    async def generate_path(
+        self, ctx: Context, ev: GeneratePath
+    ) -> GenerateArtifact | UpdateArtifact | RewriteArtifact | RespondToQuery:
         user_query = await ctx.get("original_user_message")
         app_context = prompts.APP_CONTEXT_SNIPPET
-        highlighted_text = await ctx.get("highlighted_text")
         artifact = await ctx.get("artifact")
+        highlighted_text = await ctx.get("highlighted_text")
+        chat_history: List[Any] = await ctx.get("chat_history")
 
-        # prompt = prompts.GENERATE_PATH_PROMPT()
-        log(f"", next="GenerateArtifact", **self._log_defaults)
-        return GenerateArtifact(nodes=ev.nodes)
+        # @TODO: Update artifact:
+        if highlighted_text:
+            ctx.send_event(UpdateArtifact(nodes=ev.nodes))
+
+        if len(chat_history):
+            recent_messages_acc: str = ""
+            for message in last_n(chat_history, 3):
+                recent_messages_acc += str(message)
+            recent_messages_snippet = prompts.RECENT_MESSAGES_SNIPPET.format(
+                recent_mesages=recent_messages_acc
+            )
+        else:
+            recent_messages_snippet = prompts.NO_RECENT_MESSAGES
+
+        if artifact:
+            artifact_snipet = prompts.ARTIFACT_SNIPPET.format(artifact=artifact)
+            route_options_snippet = prompts.HAS_ARTIFACT_ROUTES
+        else:
+            artifact_snipet = prompts.NO_ARTIFACT_SNIPPET
+            route_options_snippet = prompts.NO_ARTIFACT_ROUTES
+
+        prompt = prompts.GENERATE_PATH_PROMPT.format(
+            app_context=app_context,
+            artifact=artifact_snipet,
+            recent_messages=recent_messages_snippet,
+            route_options=route_options_snippet,
+            user_query=user_query,
+        )
+
+        class _Route(str, Enum):
+            generateArtifact = "generateArtifact"
+            replyToGeneralInput = "replyToGeneralInput"
+            rewriteArtifact = "rewriteArtifact"
+
+        class _RouteCompletion(BaseModel):
+            route: _Route
+
+        structured_llm = self.llm.as_structured_llm(output_cls=_RouteCompletion)
+
+        response = structured_llm.complete(prompt)
+
+        response_object: _RouteCompletion = _RouteCompletion.model_validate_json(
+            json_data=response.text
+        )
+
+        log(response.text, **self._log_defaults)
+
+        if response_object.route == "generateArtifact":
+            log(f"", next="GenerateArtifact", **self._log_defaults)
+            return GenerateArtifact(nodes=ev.nodes)
+
+        elif response_object.route == "rewriteArtifact":
+            log(f"", next="RewriteArtifact", **self._log_defaults)
+            return RewriteArtifact(nodes=ev.nodes)
+
+        elif response_object.route == "replyToGeneralInput":
+            log(f"", next="RespondToQuery", **self._log_defaults)
+            return RespondToQuery(nodes=ev.nodes)
+
+        else:
+            log(
+                f"[orange]WARNING:[/] Indecisive output",
+                next="GenerateArtifact",
+                **self._log_defaults,
+            )
+            return GenerateArtifact(nodes=ev.nodes)
 
     @step
     async def generate_artifact(self, ctx: Context, ev: GenerateArtifact) -> StopEvent:
@@ -454,6 +532,92 @@ class DesignExpertWorkflow(Workflow):
         )
 
         log(f"Generating new artifact", **self._log_defaults)
+
+        response_gen = self.llm.stream_complete(prompt=prompt)
+
+        return StopEvent(
+            WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes)
+        )
+
+    @step
+    async def update_artifact(self, ctx: Context, ev: UpdateArtifact) -> StopEvent:
+        user_query = await ctx.get("original_user_message")
+        app_context = prompts.APP_CONTEXT_SNIPPET
+        highlighted_text = await ctx.get("highlighted_text")
+        artifact = await ctx.get("artifact")
+
+        formatted_context_list = format_nodes(ev.nodes)
+        reference_snippet = prompts.RETRIEVED_CONTEXT_SNIPPET.format(
+            retrieved_context=formatted_context_list
+        )
+
+        prompt = prompts.UPDATE_ARTIFACT_PROMPT.format(
+            retrieved_context_snippet=reference_snippet,
+            artifact=artifact,
+            user_query=user_query,
+            highlighted_text=highlighted_text,
+        )
+
+        log(f"Updating existing artifact", **self._log_defaults)
+        response_gen = self.llm.stream_complete(prompt=prompt)
+
+        return StopEvent(
+            WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes)
+        )
+
+    @step
+    async def rewrite_artifact(self, ctx: Context, ev: RewriteArtifact) -> StopEvent:
+        user_query = await ctx.get("original_user_message")
+        app_context = prompts.APP_CONTEXT_SNIPPET
+        artifact = await ctx.get("artifact")
+
+        formatted_context_list = format_nodes(ev.nodes)
+        reference_snippet = prompts.RETRIEVED_CONTEXT_SNIPPET.format(
+            retrieved_context=formatted_context_list
+        )
+
+        prompt = prompts.REWRITE_ARTIFACT_PROMPT.format(
+            app_context=app_context,
+            retrieved_context_snippet=reference_snippet,
+            artifact=artifact,
+            user_query=user_query,
+        )
+
+        log(f"Generating new artifact", **self._log_defaults)
+
+        response_gen = self.llm.stream_complete(prompt=prompt)
+
+        return StopEvent(
+            WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes)
+        )
+
+    @step
+    async def respond_to_query(self, ctx: Context, ev: RespondToQuery) -> StopEvent:
+        app_context = prompts.APP_CONTEXT_SNIPPET
+        user_query = await ctx.get("original_user_message")
+        chat_history = await ctx.get("chat_history")
+
+        formatted_context_list = format_nodes(ev.nodes)
+        reference_snippet = prompts.RETRIEVED_CONTEXT_SNIPPET.format(
+            retrieved_context=formatted_context_list
+        )
+
+        if len(chat_history):
+            recent_messages_acc: str = ""
+            for message in last_n(chat_history, 3):
+                recent_messages_acc += str(message)
+            recent_messages_snippet = prompts.RECENT_MESSAGES_SNIPPET.format(
+                recent_mesages=recent_messages_acc
+            )
+        else:
+            recent_messages_snippet = prompts.NO_RECENT_MESSAGES
+
+        prompt = prompts.RESPOND_TO_QUERY_PROMPT.format(
+            app_context=app_context,
+            user_query=user_query,
+            retrieval_context_snippet=formatted_context_list,
+            recent_messages=recent_messages_snippet,
+        )
 
         response_gen = self.llm.stream_complete(prompt=prompt)
 
