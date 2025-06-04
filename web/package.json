@@ -43,7 +43,9 @@
     "radix-ui": "^1.4.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-textarea-autosize": "^8.5.9",
     "tailwindcss": "^4.1.7",
+    "tiptap-markdown": "^0.8.10",
     "zustand": "^5.0.4"
   },
   "devDependencies": {

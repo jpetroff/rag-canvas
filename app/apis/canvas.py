@@ -16,7 +16,7 @@ from typing import (
 )
 from typing_extensions import NotRequired, TypedDict
 
-from schemas.openai import shortuuid
+from schemas.openai import ChatCompletionResponse, shortuuid
 from workflows.design_expert.workflow import WorkflowResult
 from server_app import app
 from llama_index.core.workflow.handler import WorkflowHandler
@@ -142,6 +142,7 @@ class CanvasApi:
             for response in final_result.async_response_gen:
                 accumulated_response["generated_tokens"] += 1
                 accumulated_response["full_response"] += str(response.delta)
+                _last_response = response
                 await websocket.send_json(
                     DefaultResponse(
                         type="completion.chunk", content=str(response.delta)

@@ -1,30 +1,15 @@
-import {
-  create
-} from 'zustand'
+import { Editor } from '@tiptap/react'
+import Extensions from './editorExtensions'
 
-type ConversationStore = {
-  currentEditorContent: string
-  editorContentVersions: string[]
-  lastChatMessage: string
-  chatHistory: string[]
+const MainEditor = new Editor({
+  content: '',
+  extensions: Extensions,
+  editorProps: {
+    attributes: {
+      'data-component': 'TipTapEditor',
+      class: 'max-w-(--max-editor-width) mx-auto w-full',
+    },
+  },
+})
 
-  updateEditorContent: (content: string) => void
-}
-
-const useConversationStore = create<ConversationStore>()((set) => ({
-  currentEditorContent: 'This is your content',
-  editorContentVersions: [],
-  lastChatMessage: '',
-  chatHistory: [],
-
-  updateEditorContent: (content) =>
-    set(
-      (state): Partial<ConversationStore> => ({
-        currentEditorContent: content,
-        editorContentVersions: [...state.editorContentVersions, content],
-      })
-    ),
-}))
-
-
-export default useConversationStore
+export { MainEditor }

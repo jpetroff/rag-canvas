@@ -14,7 +14,7 @@ from llama_index.core.base.llms.types import MessageRole
 
 
 def shortuuid():
-    return uuid.uuid4().hex[:6]
+    return uuid.uuid4().hex[:12]
 
 
 class DefaultResponse(BaseModel):
@@ -111,3 +111,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: Optional[float] = Field(default=0.1)
 
     max_tokens: Optional[int] = Field(default=1024 * 5, validation_alias="maxTokens")
+
+    similarity_cutoff: Optional[float] = Field(
+        default=0.7, validation_alias="similarityCutoff"
+    )

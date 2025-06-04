@@ -1,17 +1,42 @@
 import React from 'react'
+import * as types from './types'
+import clsx from 'clsx'
+import omit from 'lodash/omit'
 
-export type ChatProps = object
+import ChatContext, { type ChatContextValue } from './context'
+import * as ChatSendFormBundle from './send-form'
+import ChatMessage from './message'
+import ChatList from './list'
 
-const Chat: React.FC<ChatProps> = (props: ChatProps) => {
-  return (
-    <div
-      data-block="layout"
-      data-component="Chat"
-      className={
-        'flex flex-column flex-shrink-0 flex-grow-0 h-full bg-b1-solid-neutral flex-1/4'
-      }
-    ></div>
-  )
+type ChatElement = React.ComponentRef<'div'>
+interface ChatElementProps extends React.ComponentPropsWithoutRef<'div'> {
+  disableSend: boolean
 }
 
-export default Chat
+const Chat = React.forwardRef<ChatElement, ChatElementProps>(
+  (props: ChatElementProps, forwardRef) => {
+    const contextValue: ChatContextValue = {
+      disableSend: false,
+    }
+    return (
+      <ChatContext.Provider value={contextValue}>
+        <div
+          ref={forwardRef}
+          data-component="ChatWrapper"
+          className={clsx('', props.className)}
+          {...omit(props, 'className', ...Object.keys(contextValue))}
+        >
+          {props.children}
+        </div>
+      </ChatContext.Provider>
+    )
+  }
+)
+
+const Root = Chat
+
+const Send = ChatSendFormBundle
+const Message = ChatMessage
+const List = ChatList
+
+export { Root, Send, Message, List }

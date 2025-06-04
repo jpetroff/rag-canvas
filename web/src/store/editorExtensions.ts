@@ -31,6 +31,7 @@ import {
 import { Paragraph, type ParagraphOptions } from '@tiptap/extension-paragraph'
 import { Strike, type StrikeOptions } from '@tiptap/extension-strike'
 import { Text } from '@tiptap/extension-text'
+import { Markdown } from 'tiptap-markdown'
 
 export default [
   Blockquote,
@@ -49,6 +50,7 @@ export default [
 
   Document,
   Text,
+  Markdown,
 
   Bold,
   Italic,

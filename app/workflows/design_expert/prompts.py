@@ -211,7 +211,7 @@ Context:
 User Request:
 {user_query}
 
-Ensure you ONLY reply with the rewritten artifact and NO other content. Mark the beginning of the artifact document as |artifact|> and the end as <|artifact| so it can be extracted and used separately from the answer as a standalone document.
+Ensure you ONLY reply with the rewritten artifact and NO other content. Mark the beginning of the artifact document as `|artifact|>` and the end as `<|artifact|` so it can be extracted and used separately from the answer as a standalone document.
 Answer: """
 
 UPDATE_ARTIFACT_PROMPT: Annotated[
@@ -270,7 +270,7 @@ Follow these rules and guidelines:
 
 {retrieved_context_snippet}
 
-Ensure you ONLY reply with the rewritten artifact and NO other content. Mark the beginning of the artifact document as |artifact|> and the end as <|artifact| so it can be extracted and used separately from the answer as a standalone document.
+Ensure you ONLY reply with the rewritten artifact and NO other content. Mark the beginning of the artifact document as `|artifact|>` and the end as `<|artifact|` so it can be extracted and used separately from the answer as a standalone document.
 Answer: """
 
 FOLLOWUP_PROMPT: Annotated[

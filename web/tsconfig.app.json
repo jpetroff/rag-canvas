@@ -9,12 +9,13 @@
 
     /* Paths */
     "paths": {
-        "@/*": ["./src/*"],
-        "@components/*": ["./src/components/*"],
-        "@pages/*": ["./src/pages/*"],
-        "@assets/*": ["./src/assets/*"],
-        "@store/*": ["./src/store/*"],
-        "@shared/*": ["./src/shared/*"]
+      "@/*": ["./src/*"],
+      "@components/*": ["./src/components/*"],
+      "@app-components/*": ["./src/app-components/*"],
+      "@pages/*": ["./src/pages/*"],
+      "@assets/*": ["./src/assets/*"],
+      "@store/*": ["./src/store/*"],
+      "@shared/*": ["./src/shared/*"]
     },
 
     /* Bundler mode */

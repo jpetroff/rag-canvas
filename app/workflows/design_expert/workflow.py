@@ -39,7 +39,7 @@ from typing import Generator, Literal, Optional, Union
 
 from typing import List, Any, Dict
 
-from schemas.canvas import Artifact
+from schemas.canvas import Artifact, shortuuid
 from libs.crawl4ai import Crawl4AiReader, string_metadata_dict
 
 from .utils import format_nodes, last_n, log
@@ -53,9 +53,9 @@ Events declaration
 
 
 class ProgressEvent(Event):
-    description: str
-    content: Optional[str] = None
-    isOngoing: bool = True
+    description: str | None
+    content: str | None = None
+    payload: Dict[str, Any] | None = None
 
 
 class DetermineContextNeeds(Event):
@@ -165,6 +165,7 @@ class DesignExpertWorkflow(Workflow):
 
         artifact: Artifact | None = ev.get("artifact", None)
         await ctx.set("artifact", artifact.content if artifact is not None else None)
+        await ctx.set("artifact_id", artifact.id if artifact is not None else None)
 
         highlighted_text = ev.get("highlighted_text", None)
         await ctx.set("highlighted_text", highlighted_text)
@@ -175,8 +176,7 @@ class DesignExpertWorkflow(Workflow):
         if not self.index:
             ctx.write_event_to_stream(
                 ProgressEvent(
-                    description="Skipping retrieval augmented generation — no index provided",
-                    isOngoing=False,
+                    description="Skipping retrieval augmented generation — no index provided"
                 )
             )
             log("No index provided", next="GeneratePath", **self._log_defaults)
@@ -461,7 +461,9 @@ class DesignExpertWorkflow(Workflow):
             recent_messages_snippet = prompts.NO_RECENT_MESSAGES
 
         if artifact:
-            artifact_snipet = prompts.ARTIFACT_SNIPPET.format(artifact=artifact)
+            artifact_snipet = prompts.ARTIFACT_SNIPPET.format(
+                artifact_content=str(artifact)
+            )
             route_options_snippet = prompts.HAS_ARTIFACT_ROUTES
         else:
             artifact_snipet = prompts.NO_ARTIFACT_SNIPPET
@@ -520,6 +522,13 @@ class DesignExpertWorkflow(Workflow):
         highlighted_text = await ctx.get("highlighted_text")
         artifact = await ctx.get("artifact")
 
+        ctx.write_event_to_stream(
+            ProgressEvent(
+                description=f"Generating new artifact {'using relevant documents ('+str(len(ev.nodes))+')' if len(ev.nodes) > 0 else ''}",
+                payload={"artifactId": shortuuid()},
+            )
+        )
+
         formatted_context_list = format_nodes(ev.nodes)
         reference_snippet = prompts.RETRIEVED_CONTEXT_SNIPPET.format(
             retrieved_context=formatted_context_list
@@ -546,6 +555,13 @@ class DesignExpertWorkflow(Workflow):
         highlighted_text = await ctx.get("highlighted_text")
         artifact = await ctx.get("artifact")
 
+        ctx.write_event_to_stream(
+            ProgressEvent(
+                description=f"Updating artifact",
+                payload={"artifactId": artifact.id},
+            )
+        )
+
         formatted_context_list = format_nodes(ev.nodes)
         reference_snippet = prompts.RETRIEVED_CONTEXT_SNIPPET.format(
             retrieved_context=formatted_context_list
@@ -570,6 +586,14 @@ class DesignExpertWorkflow(Workflow):
         user_query = await ctx.get("original_user_message")
         app_context = prompts.APP_CONTEXT_SNIPPET
         artifact = await ctx.get("artifact")
+        artifact_id = await ctx.get("artifact_id")
+
+        ctx.write_event_to_stream(
+            ProgressEvent(
+                description=f"Rewriting artifact {'using relevant documents ('+str(len(ev.nodes))+')' if len(ev.nodes) > 0 else ''}",
+                payload={"artifactId": artifact_id},
+            )
+        )
 
         formatted_context_list = format_nodes(ev.nodes)
         reference_snippet = prompts.RETRIEVED_CONTEXT_SNIPPET.format(
@@ -596,6 +620,13 @@ class DesignExpertWorkflow(Workflow):
         app_context = prompts.APP_CONTEXT_SNIPPET
         user_query = await ctx.get("original_user_message")
         chat_history = await ctx.get("chat_history")
+
+        ctx.write_event_to_stream(
+            ProgressEvent(
+                description=f"Answering question {'using relevant documents ('+str(len(ev.nodes))+')' if len(ev.nodes) > 0 else ''}",
+                payload={"artifactId": shortuuid()},
+            )
+        )
 
         formatted_context_list = format_nodes(ev.nodes)
         reference_snippet = prompts.RETRIEVED_CONTEXT_SNIPPET.format(

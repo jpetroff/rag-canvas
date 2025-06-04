@@ -1,23 +1,28 @@
-import { useCurrentEditor } from '@tiptap/react'
+import { useCurrentEditor, Editor } from '@tiptap/react'
 import clsx from 'clsx'
 import { omit } from 'lodash'
 import React from 'react'
 import { Toolbar } from 'radix-ui'
 import { type ToolbarProps } from '@radix-ui/react-toolbar'
 import * as Icons from '@phosphor-icons/react'
+import { BtnClasses } from '@/shared/Button'
 
-type MenuBarProps = ToolbarProps
+type MenuBarProps = ToolbarProps & {
+  editor: Editor | null
+}
 
 const MenuBar: React.FC<MenuBarProps> = (props) => {
-  const {editor} = useCurrentEditor()
+  const _editor = useCurrentEditor()
+  const { editor } = props.editor != null ? props : _editor
 
-  if(!editor) return
+  if (!editor) return null
 
-  const ghostBtnClasses = 'bg-ghost-btn-b text-ghost-btn-f hover:bg-ghost-btn-b-hover hover:text-ghost-btn-f-hover transition-colors'
-  const toggleBtnClasses =
-    'data-[state=true]:text-pressed-btn-f data-[state=true]:hover:text-pressed-btn-f-hover data-[state=true]:bg-pressed-btn-b data-[state=true]:hover:bg-pressed-btn-b-hover'
-  const btnShapeClasses =
-    'cursor-pointer ml-0.5 inline-flex size-btn-md flex-shrink-0 flex-grow-0 basis-auto items-center justify-center rounded bg-white leading-none outline-none first:ml-0'
+  const menuBarBtnClasses = [
+    BtnClasses._base,
+    BtnClasses.iconNormal,
+    BtnClasses.ghost,
+    BtnClasses.toggle,
+  ]
 
   return (
     <div
@@ -36,51 +41,40 @@ const MenuBar: React.FC<MenuBarProps> = (props) => {
         <Toolbar.ToggleGroup
           type="multiple"
           aria-label="Text formatting"
-          className="flex flex-row"
+          className="flex flex-row gap-0.5"
         >
-          
           <Toolbar.ToggleItem
-            className={clsx(ghostBtnClasses, btnShapeClasses, toggleBtnClasses)}
+            className={clsx(...menuBarBtnClasses)}
             value="bold"
             aria-label="Bold"
             data-state={editor.isActive('bold')}
             onClick={() => editor.chain().focus().toggleBold().run()}
           >
-            <Icons.TextBolderIcon
-              size={'auto'}
-              weight={'regular'}
-              className="size-icon-md"
-            />
+            <Icons.TextBolderIcon weight={'regular'} className="size-icon-md" />
           </Toolbar.ToggleItem>
 
           <Toolbar.ToggleItem
-            className={clsx(ghostBtnClasses, btnShapeClasses, toggleBtnClasses)}
+            className={clsx(...menuBarBtnClasses)}
             value="bold"
             aria-label="Bold"
             data-state={editor.isActive('italic')}
             onClick={() => editor.chain().focus().toggleItalic().run()}
           >
-            <Icons.TextItalicIcon
-              size={'auto'}
-              weight={'regular'}
-              className="size-icon-md"
-            />
+            <Icons.TextItalicIcon weight={'regular'} className="size-icon-md" />
           </Toolbar.ToggleItem>
 
           <Toolbar.ToggleItem
-            className={clsx(ghostBtnClasses, btnShapeClasses, toggleBtnClasses)}
+            className={clsx(...menuBarBtnClasses)}
             value="bold"
             aria-label="Bold"
             data-state={editor.isActive('strike')}
             onClick={() => editor.chain().focus().toggleStrike().run()}
           >
             <Icons.TextStrikethroughIcon
-              size={'auto'}
               weight={'regular'}
               className="size-icon-md"
             />
           </Toolbar.ToggleItem>
-
         </Toolbar.ToggleGroup>
       </Toolbar.Root>
     </div>
