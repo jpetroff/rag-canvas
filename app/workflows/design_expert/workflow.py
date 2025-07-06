@@ -31,7 +31,7 @@ from llama_index.core.embeddings.utils import EmbedType
 from llama_index.core.schema import NodeWithScore
 from llama_index.core import Settings
 from llama_index.core import VectorStoreIndex
-from langfuse.llama_index import LlamaIndexInstrumentor
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 import json_repair.json_parser
 from networkx import nodes
 from pydantic import BaseModel, Field, PrivateAttr

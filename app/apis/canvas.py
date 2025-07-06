@@ -15,6 +15,7 @@ from typing import (
     TypedDict,
 )
 from typing_extensions import NotRequired, TypedDict
+import os
 
 from schemas.openai import ChatCompletionResponse, shortuuid
 from workflows.design_expert.workflow import WorkflowResult
@@ -28,8 +29,9 @@ from workflows.design_expert import (
     DesignExpertWorkflowConfig,
 )
 
-from langfuse.llama_index import LlamaIndexInstrumentor
-from langfuse.llama_index._instrumentor import StatefulTraceClient
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+from langfuse import get_client, Langfuse
+from langfuse._client.span import LangfuseSpan
 import logging
 
 
@@ -47,6 +49,7 @@ class CanvasApi:
     observability_kwargs: Optional[Dict[str, Any]]
 
     instrumentor: Optional[LlamaIndexInstrumentor] = None
+    langfuse: Optional[Langfuse] = None
 
     def __init__(
         self,
@@ -59,9 +62,18 @@ class CanvasApi:
         self.observability_kwargs = observability_kwargs
 
         if self.observability and self.observability_kwargs:
-            self.instrumentor = LlamaIndexInstrumentor(
-                debug=False, **self.observability_kwargs
-            )
+            os.environ["LANGFUSE_PUBLIC_KEY"] = self.observability_kwargs["public_key"]
+            os.environ["LANGFUSE_SECRET_KEY"] = self.observability_kwargs["secret_key"]
+            os.environ["LANGFUSE_HOST"] = self.observability_kwargs["host"]
+            self.langfuse = get_client()
+            # Verify connection
+            if self.langfuse.auth_check():
+                print("Langfuse client is authenticated and ready!")
+            else:
+                print("Authentication failed. Please check your credentials and host.")
+
+            self.instrumentor = LlamaIndexInstrumentor(**self.observability_kwargs)
+            self.instrumentor.instrument()
             langfuse_logger = logging.getLogger("langfuse")
             langfuse_logger.setLevel("CRITICAL")
 
@@ -84,22 +96,26 @@ class CanvasApi:
             response = DefaultResponse(type="error", content=str(error))
             await websocket.send_json(response.dump())
         finally:
-            if self.instrumentor and self.instrumentor._is_instrumented:
-                self.instrumentor.stop()
-                self.instrumentor.flush()
+            if (
+                self.instrumentor
+                and self.langfuse
+                and self.instrumentor.is_instrumented_by_opentelemetry
+            ):
+                self.langfuse.flush()
             await websocket.close()
 
     async def start_with_observability(self, websocket: WebSocket):
         assert self.instrumentor
+        assert self.langfuse
 
-        self.instrumentor.start()
-        with self.instrumentor.observe(trace_id=f"workflow-{shortuuid()}") as trace:
+        with self.langfuse.start_as_current_span(
+            name=f"workflow-{shortuuid()}"
+        ) as trace:
             await self.completion(websocket, trace)
-        self.instrumentor.stop()
-        self.instrumentor.flush()
+        self.langfuse.flush()
 
     async def completion(
-        self, websocket: WebSocket, trace: Optional[StatefulTraceClient] = None
+        self, websocket: WebSocket, trace: Optional[LangfuseSpan] = None
     ):
         try:
 
@@ -162,16 +178,15 @@ class CanvasApi:
                     type="completion.usage",
                     payload={
                         "generated_tokens": accumulated_response["generated_tokens"],
-                        "traceId": trace.id if trace is not None else None,
-                        "traceUrl": (
-                            trace.get_trace_url() if trace is not None else None
-                        ),
+                        "traceId": trace.trace_id if trace is not None else None,
                     },
                 ).model_dump()
             )
 
             if trace:
-                trace.event(name="Generation.Complete", output=accumulated_response)
+                trace.create_event(
+                    name="Generation.Complete", output=accumulated_response
+                )
 
         except Exception as exception:
             await websocket.send_json(
@@ -180,9 +195,6 @@ class CanvasApi:
                     payload={
                         "error": str(exception),
                         "traceId": trace.id if trace is not None else None,
-                        "traceUrl": (
-                            trace.get_trace_url() if trace is not None else None
-                        ),
                     },
                 ).dump()
             )

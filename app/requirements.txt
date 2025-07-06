@@ -20,6 +20,7 @@ llama-index-storage-docstore-mongodb
 
 # observability
 langfuse
+openinference-instrumentation-llama-index
 
 #utils
 black
