@@ -3,7 +3,7 @@ from fastapi import Body
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from server_app import app
-from llama_index.core.workflow.handler import WorkflowHandler
+from workflows.handler import WorkflowHandler
 from typing import Annotated, Any, Callable, Optional, Dict
 from schemas.openai import (
     ChatCompletionChunk,
@@ -17,7 +17,7 @@ from schemas.openai import (
 )
 
 
-from workflows.design_expert_chat import (
+from llamaindex_workflows.design_expert_chat import (
     DesignRAGWorkflow,
     ProgressEvent,
     DesignRAGWorkflowConfig,

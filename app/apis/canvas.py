@@ -18,12 +18,12 @@ from typing_extensions import NotRequired, TypedDict
 import os
 
 from schemas.openai import ChatCompletionResponse, shortuuid
-from workflows.design_expert.workflow import WorkflowResult
+from llamaindex_workflows.design_expert.workflow import WorkflowResult
 from server_app import app
-from llama_index.core.workflow.handler import WorkflowHandler
+from workflows.handler import WorkflowHandler
 from schemas.canvas import ChatCompletionRequest, DefaultResponse
 
-from workflows.design_expert import (
+from llamaindex_workflows.design_expert import (
     DesignExpertWorkflow,
     ProgressEvent,
     DesignExpertWorkflowConfig,
