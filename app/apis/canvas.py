@@ -1,23 +1,9 @@
-from email.policy import default
 from enum import Enum
-from fastapi import Body, WebSocket
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field, SerializeAsAny
-from typing import (
-    Annotated,
-    Any,
-    Callable,
-    Optional,
-    Dict,
-    Literal,
-    Union,
-    List,
-    TypedDict,
-)
-from typing_extensions import NotRequired, TypedDict
+from fastapi import WebSocket
+from typing import Any, Optional, Dict
 import os
 
-from schemas.openai import ChatCompletionResponse, shortuuid
+from schemas.openai import shortuuid
 from llamaindex_workflows.design_expert.workflow import WorkflowResult
 from server_app import app
 from workflows.handler import WorkflowHandler
@@ -92,8 +78,14 @@ class CanvasApi:
                 await self.start_with_observability(websocket)
             else:
                 await self.completion(websocket)
-        except Exception as error:
-            response = DefaultResponse(type="error", content=str(error))
+        except (ValueError, KeyError, TypeError) as error:
+            response = DefaultResponse(type="error", content=f"Invalid request: {str(error)}")
+            await websocket.send_json(response.dump())
+        except (ConnectionError, TimeoutError, OSError) as error:
+            response = DefaultResponse(type="error", content=f"Connection error: {str(error)}")
+            await websocket.send_json(response.dump())
+        except Exception as error:  # pylint: disable=broad-except
+            response = DefaultResponse(type="error", content=f"Unexpected error: {str(error)}")
             await websocket.send_json(response.dump())
         finally:
             if (
@@ -108,15 +100,14 @@ class CanvasApi:
         assert self.instrumentor
         assert self.langfuse
 
-        with self.langfuse.start_as_current_span(
-            name=f"workflow-{shortuuid()}"
-        ) as trace:
+        # Create span context manager - Langfuse returns a proper context manager
+        # Note: Langfuse's start_as_current_span returns a context manager but linter can't detect it
+        span_context = self.langfuse.start_as_current_span(name=f"workflow-{shortuuid()}")
+        with span_context as trace:  # pylint: disable=not-context-manager
             await self.completion(websocket, trace)
         self.langfuse.flush()
 
-    async def completion(
-        self, websocket: WebSocket, trace: Optional[LangfuseSpan] = None
-    ):
+    async def completion(self, websocket: WebSocket, trace: Optional[LangfuseSpan] = None):
         try:
 
             request = await websocket.receive_json()
@@ -141,9 +132,7 @@ class CanvasApi:
             async for event in handler.stream_events():
                 if isinstance(event, ProgressEvent):
                     await websocket.send_json(
-                        DefaultResponse(
-                            type="event", payload=event.model_dump()
-                        ).model_dump()
+                        DefaultResponse(type="event", payload=event.model_dump()).model_dump()
                     )
 
             final_result: WorkflowResult = await handler
@@ -184,16 +173,36 @@ class CanvasApi:
             )
 
             if trace:
-                trace.create_event(
-                    name="Generation.Complete", output=accumulated_response
-                )
+                trace.create_event(name="Generation.Complete", output=accumulated_response)
 
-        except Exception as exception:
+        except (ValueError, KeyError, TypeError) as exception:
             await websocket.send_json(
                 DefaultResponse(
                     type="error",
                     payload={
-                        "error": str(exception),
+                        "error": f"Invalid request: {str(exception)}",
+                        "traceId": trace.id if trace is not None else None,
+                    },
+                ).dump()
+            )
+            return
+        except (ConnectionError, TimeoutError, OSError) as exception:
+            await websocket.send_json(
+                DefaultResponse(
+                    type="error",
+                    payload={
+                        "error": f"Connection error: {str(exception)}",
+                        "traceId": trace.id if trace is not None else None,
+                    },
+                ).dump()
+            )
+            return
+        except Exception as exception:  # pylint: disable=broad-except
+            await websocket.send_json(
+                DefaultResponse(
+                    type="error",
+                    payload={
+                        "error": f"Unexpected error: {str(exception)}",
                         "traceId": trace.id if trace is not None else None,
                     },
                 ).dump()

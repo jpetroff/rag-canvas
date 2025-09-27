@@ -24,7 +24,7 @@ from llama_index.tools.duckduckgo import DuckDuckGoSearchToolSpec
 from llama_index.core.embeddings.utils import EmbedType
 from llama_index.core import Settings
 from llama_index.core import VectorStoreIndex
-from langfuse.llama_index import LlamaIndexInstrumentor
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 import datetime
 import json_repair.json_parser
 import re
@@ -132,16 +132,12 @@ class DesignRAGWorkflow(Workflow):
             *messages,
         ]
 
-    def _user_messages_dict_to_chat_history(
-        self, messages: List[dict]
-    ) -> List[ChatMessage]:
+    def _user_messages_dict_to_chat_history(self, messages: List[dict]) -> List[ChatMessage]:
 
         result: List[ChatMessage] = []
         for original_message in messages:
             result.append(
-                ChatMessage(
-                    role=original_message["role"], content=original_message["content"]
-                )
+                ChatMessage(role=original_message["role"], content=original_message["content"])
             )
 
         return result
@@ -240,9 +236,7 @@ class DesignRAGWorkflow(Workflow):
         return None  # type: ignore[func-returns-value]
 
     @step
-    async def retrieve_documents(
-        self, ctx: Context, ev: RankKnowledge
-    ) -> CollectRankedNodes:
+    async def retrieve_documents(self, ctx: Context, ev: RankKnowledge) -> CollectRankedNodes:
         _user = await ctx.get("user")
         self._log(_user, f"started for query={ev.query}")
         query = ev.query
@@ -251,9 +245,7 @@ class DesignRAGWorkflow(Workflow):
             # collection_threads: int = await ctx.get('collection_threads')
             # await ctx.set('collection_threads', collection_threads + 1)
             self._log(_user, f"query={query}")
-            retriever = self.document_index.as_retriever(
-                similarity_top_k=self.RETRIEVE_TOP_K
-            )
+            retriever = self.document_index.as_retriever(similarity_top_k=self.RETRIEVE_TOP_K)
             nodes: List[NodeWithScore] = retriever.retrieve(query)
             self._log(_user, f"returned {len(nodes)} nodes")
             return CollectRankedNodes(nodes=nodes)
@@ -299,9 +291,7 @@ class DesignRAGWorkflow(Workflow):
 
         result = self.llm.chat(messages=chat_history)
         if result.message.content is None:
-            raise Exception(
-                "Step [generate_search_queries]: returned invalid response None"
-            )
+            raise Exception("Step [generate_search_queries]: returned invalid response None")
 
         response_obj = self._cleanup_json(result.message.content)
 
@@ -315,9 +305,7 @@ class DesignRAGWorkflow(Workflow):
         self._log(_user, f"search_queries={str(search_queries)}", False)
 
         collection_threads: int = await ctx.get("collection_threads")
-        await ctx.set(
-            "collection_threads", collection_threads + 1 * len(search_queries)
-        )
+        await ctx.set("collection_threads", collection_threads + 1 * len(search_queries))
         for search_query in search_queries:
             # ctx.send_event(RankSearchResults(search_query=search_query))
             ctx.send_event(RankKnowledge(query=search_query))
@@ -325,9 +313,7 @@ class DesignRAGWorkflow(Workflow):
         return None  # type: ignore[func-returns-value]
 
     @step
-    async def query_search_results(
-        self, ctx: Context, ev: RankSearchResults
-    ) -> CollectRankedNodes:
+    async def query_search_results(self, ctx: Context, ev: RankSearchResults) -> CollectRankedNodes:
         _user = await ctx.get("user")
         search_query: str = ev.search_query
         self._log(_user, f"started for '{search_query}'")
@@ -352,21 +338,15 @@ class DesignRAGWorkflow(Workflow):
             return CollectRankedNodes(nodes=output)
 
         except Exception as error:
-            self._log(
-                _user, f"Exception when querying for {search_query}: {str(error)}"
-            )
+            self._log(_user, f"Exception when querying for {search_query}: {str(error)}")
             return CollectRankedNodes(nodes=[])
 
     @step
-    async def process_nodes(
-        self, ctx: Context, ev: CollectRankedNodes
-    ) -> SynthesizeEvent:
+    async def process_nodes(self, ctx: Context, ev: CollectRankedNodes) -> SynthesizeEvent:
         _user = await ctx.get("user")
 
         collection_threads: int = await ctx.get("collection_threads")
-        event_results = ctx.collect_events(
-            ev, [CollectRankedNodes] * collection_threads
-        )
+        event_results = ctx.collect_events(ev, [CollectRankedNodes] * collection_threads)
 
         self._log(
             _user,
@@ -399,9 +379,7 @@ class DesignRAGWorkflow(Workflow):
         )
         long_context_reorder_postprocessor = LongContextReorder()
         nodes_cutoff = similarity_cutoff_postprocessor.postprocess_nodes(all_nodes)
-        nodes_reordered = long_context_reorder_postprocessor.postprocess_nodes(
-            nodes_cutoff
-        )
+        nodes_reordered = long_context_reorder_postprocessor.postprocess_nodes(nodes_cutoff)
         self._log(
             _user,
             f"postprocessing ended: {len(nodes_reordered)}/{len(all_nodes)} returned",
@@ -409,9 +387,7 @@ class DesignRAGWorkflow(Workflow):
 
         return SynthesizeEvent(nodes=nodes_reordered, query=user_query)
 
-    def _format_sources(
-        self, nodes: List[NodeWithScore] = [], include_content: bool = True
-    ) -> str:
+    def _format_sources(self, nodes: List[NodeWithScore] = [], include_content: bool = True) -> str:
         if not isinstance(nodes, list):
             return ""
 
@@ -457,9 +433,7 @@ class DesignRAGWorkflow(Workflow):
             "Answer:\n"
         )
 
-        message_with_context = message_with_context.format(
-            node_context=node_context, query=query
-        )
+        message_with_context = message_with_context.format(node_context=node_context, query=query)
 
         chat_history: List[ChatMessage] = await ctx.get("chat_history")
         chat_history = self._update_last_user_message(
@@ -471,9 +445,7 @@ class DesignRAGWorkflow(Workflow):
         result = {
             "message": response,
             "sources": nodes,
-            "sources_formatted": self._format_sources(
-                nodes=nodes, include_content=False
-            ),
+            "sources_formatted": self._format_sources(nodes=nodes, include_content=False),
         }
         self._log(_user, f"dispatched response generator")
         return StopEvent(result=result)
@@ -484,9 +456,7 @@ class DesignRAGWorkflow(Workflow):
 
         self._log(_user, f"started for task={ev.query}")
         chat_history: List[ChatMessage] = await ctx.get("chat_history")
-        query_chat = self._update_last_user_message(
-            content=ev.query, messages=chat_history
-        )
+        query_chat = self._update_last_user_message(content=ev.query, messages=chat_history)
         response = self.llm.stream_chat(query_chat)
         result = {"message": response}
         return StopEvent(result=result)

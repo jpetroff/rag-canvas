@@ -1,10 +1,11 @@
 from enum import Enum
 from fastapi import Body
 from fastapi.responses import JSONResponse, StreamingResponse
+from typing import Annotated, Any, Optional, Dict
+
+from workflows.handler import WorkflowHandler
 
 from server_app import app
-from workflows.handler import WorkflowHandler
-from typing import Annotated, Any, Callable, Optional, Dict
 from schemas.openai import (
     ChatCompletionChunk,
     ChatCompletionRequest,
@@ -15,17 +16,15 @@ from schemas.openai import (
     ChoiceDelta,
     UsageInfo,
 )
-
-
 from llamaindex_workflows.design_expert_chat import (
     DesignRAGWorkflow,
     ProgressEvent,
     DesignRAGWorkflowConfig,
 )
 
-
-from langfuse.llama_index import LlamaIndexInstrumentor
-from langfuse.llama_index._instrumentor import StatefulTraceClient
+# Note: Using openinference instead of langfuse.llama_index
+# from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+# from openinference.instrumentation.llama_index._instrumentor import StatefulTraceClient
 
 
 class API_OBSERVABILITY_SERVICE(str, Enum):
@@ -38,7 +37,7 @@ class OpenAIApi:
     observability: Optional[API_OBSERVABILITY_SERVICE]
     observability_kwargs: Optional[Dict[str, Any]]
 
-    instrumentor: Optional[LlamaIndexInstrumentor] = None
+    instrumentor: Optional[Any] = None  # Will be set to LlamaIndexInstrumentor when available
 
     def __init__(
         self,
@@ -51,23 +50,30 @@ class OpenAIApi:
         self.observability_kwargs = observability_kwargs
 
         if self.observability and self.observability_kwargs:
-            self.instrumentor = LlamaIndexInstrumentor(
-                debug=False, **self.observability_kwargs
-            )
+            # TODO: Implement proper instrumentor when langfuse integration is available
+            # self.instrumentor = LlamaIndexInstrumentor(
+            #     debug=False, **self.observability_kwargs
+            # )
+            pass
 
         # create a websocket endpoint for our app
         @app.post(self.path)
         async def process_query(
             request: Annotated[ChatCompletionRequest, Body()],
-            q: str | None = None,
         ) -> Any:
             try:
                 if not request.stream:
                     return await self.generate_response(request)
                 else:
                     return StreamingResponse(self.generate_streaming_response(request))
+            except ValueError as e:
+                return JSONResponse({"type": "error", "payload": f"Invalid request: {str(e)}"}, 400)
+            except RuntimeError as e:
+                return JSONResponse({"type": "error", "payload": f"Runtime error: {str(e)}"}, 500)
             except Exception as e:
-                return JSONResponse({"type": "error", "payload": str(e)}, 500)
+                return JSONResponse(
+                    {"type": "error", "payload": f"Unexpected error: {str(e)}"}, 500
+                )
 
     async def prepare_request(self, request: ChatCompletionRequest):
         pass
@@ -75,7 +81,7 @@ class OpenAIApi:
     async def completion(
         self,
         request: ChatCompletionRequest,
-        trace: Optional[StatefulTraceClient] = None,
+        trace: Optional[Any] = None,  # StatefulTraceClient when available
     ):
 
         workflow_kvargs = DesignRAGWorkflowConfig.from_openai_api_request(request)
@@ -140,9 +146,7 @@ class OpenAIApi:
         if self.instrumentor:
             self.instrumentor.start()
             with self.instrumentor.observe() as trace:
-                async for completion_chunk in self.completion(
-                    request=request, trace=trace
-                ):
+                async for completion_chunk in self.completion(request=request, trace=trace):
                     yield completion_chunk.model_dump_json()
             self.instrumentor.stop()
         else:
@@ -155,16 +159,12 @@ class OpenAIApi:
         if self.instrumentor:
             self.instrumentor.start()
             with self.instrumentor.observe() as trace:
-                async for completion_chunk in self.completion(
-                    request=request, trace=trace
-                ):
+                async for completion_chunk in self.completion(request=request, trace=trace):
                     if (
                         isinstance(completion_chunk, ChatCompletionChunk)
                         and completion_chunk.choices[0].delta
                     ):
-                        full_completion += str(
-                            completion_chunk.choices[0].delta.content
-                        )
+                        full_completion += str(completion_chunk.choices[0].delta.content)
             self.instrumentor.stop()
         else:
             async for completion_chunk in self.completion(request=request):

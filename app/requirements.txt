@@ -24,4 +24,4 @@ openinference-instrumentation-llama-index
 
 #utils
 black
-pylint
+pylint>=3.3.4

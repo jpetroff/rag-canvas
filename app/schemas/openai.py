@@ -140,9 +140,7 @@ ResponseFormat = Annotated[
 
 class ChatMessage(BaseModel):
     role: str
-    content: Optional[
-        Union[str, List[Union[TextContent, ImageContent, AudioContent]]]
-    ] = None
+    content: Optional[Union[str, List[Union[TextContent, ImageContent, AudioContent]]]] = None
     name: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
@@ -155,9 +153,7 @@ class ChatMessageWithUsage(ChatMessage):
 
 
 class ChoiceDelta(ChatMessage):
-    content: Optional[
-        Union[str, List[Union[TextContent, ImageContent, AudioContent]]]
-    ] = None
+    content: Optional[Union[str, List[Union[TextContent, ImageContent, AudioContent]]]] = None
     role: Optional[Literal["system", "user", "assistant", "tool"]] = None  # type: ignore
 
 

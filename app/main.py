@@ -1,17 +1,15 @@
 import uvicorn
-import fastapi
 from dotenv import dotenv_values
 import rich
 from typing import Dict, Any, Optional
 
-env = dotenv_values(".env")
-env_keys = env.keys()
 from apis.canvas import CanvasApi, API_OBSERVABILITY_SERVICE
 from server_app import app
 
-"""
-Init onbservability
-"""
+env = dotenv_values(".env")
+env_keys = env.keys()
+
+# Initialize observability
 enable_observability = False
 observability_kwargs: Optional[Dict[str, Any]] = None
 if (
