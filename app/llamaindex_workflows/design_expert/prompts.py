@@ -131,7 +131,7 @@ REWRITE_FOR_RETRIEVAL_PROMPT: Annotated[
 
 You must folow these guidelines:
 <guidelines>
-- Your answer should be fit continue the sentence "If I want to find answers I should search for ..."
+- Answer with 1 or more search queries, but no more than 3 queries
 - If user query mentions previous messages, make sure to identify these parts and explicitly mention them in your answer.
 - User query may reference <highlighted_text>. Extract these references and use them in the answer. Examples of references in user query: 'add more details on this topic', or 'rewrite this paragraph', or 'clarify metrics in this excerpt'.
 - Your answer can be longer then typical search query. Do not make it short at the expence of meaning.
@@ -144,7 +144,7 @@ The answer contains plain JSON object with a field 'query' that contains new rew
 
 Return a JSON object with the following structure:
 {{
-    "query": str
+    "query": str | list[str]
 }}
 
 {artifact}

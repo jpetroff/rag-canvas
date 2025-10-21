@@ -147,31 +147,29 @@ class DesignExpertWorkflow(Workflow):
         pass
 
     @step
-    async def start(
-        self, ctx: Context, ev: StartEvent
-    ) -> DetermineContextNeeds | GeneratePath:
+    async def start(self, ctx: Context, ev: StartEvent) -> DetermineContextNeeds | GeneratePath:
         """Parse and serialize workflow inputs. Add them to the context."""
 
         self._log_defaults = {"workflow": "DesignExpertWorkflow", "user": "Eugene"}
 
         chat_history = ev.get("chat_history", [])
-        await ctx.set("chat_history", chat_history)
+        await ctx.store.set("chat_history", chat_history)
 
         original_user_message = ev.get("message", None)
         if not original_user_message:
             raise RuntimeError("Message is empty")
 
-        await ctx.set("original_user_message", original_user_message)
+        await ctx.store.set("original_user_message", original_user_message)
 
         artifact: Artifact | None = ev.get("artifact", None)
-        await ctx.set("artifact", artifact.content if artifact is not None else None)
-        await ctx.set("artifact_id", artifact.id if artifact is not None else None)
+        await ctx.store.set("artifact", artifact.content if artifact is not None else None)
+        await ctx.store.set("artifact_id", artifact.id if artifact is not None else None)
 
         highlighted_text = ev.get("highlighted_text", None)
-        await ctx.set("highlighted_text", highlighted_text)
+        await ctx.store.set("highlighted_text", highlighted_text)
 
         web_search_enabled = ev.get("web_search_enabled", False)
-        await ctx.set("web_search_enabled", web_search_enabled)
+        await ctx.store.set("web_search_enabled", web_search_enabled)
 
         if not self.index:
             ctx.write_event_to_stream(
@@ -190,19 +188,17 @@ class DesignExpertWorkflow(Workflow):
         self, ctx: Context, ev: DetermineContextNeeds
     ) -> GeneratePath | RewriteQueryForRetrieval:
 
-        user_query = await ctx.get("original_user_message")
+        user_query = await ctx.store.get("original_user_message")
         app_context = prompts.APP_CONTEXT_SNIPPET
-        highlighted_text = await ctx.get("highlighted_text")
-        artifact = await ctx.get("artifact")
+        highlighted_text = await ctx.store.get("highlighted_text")
+        artifact = await ctx.store.get("artifact")
 
         log(user_query, **self._log_defaults)
 
         # ———————————————————————————————————————————————
         # Wrapping artifact into the prompt:
         if artifact:
-            artifact_snippet = prompts.ARTIFACT_SNIPPET.format(
-                artifact_content=artifact
-            )
+            artifact_snippet = prompts.ARTIFACT_SNIPPET.format(artifact_content=artifact)
         else:
             artifact_snippet = prompts.NO_ARTIFACT_SNIPPET
 
@@ -226,9 +222,7 @@ class DesignExpertWorkflow(Workflow):
         verdict = response.text.strip().upper()
 
         ctx.write_event_to_stream(
-            ProgressEvent(
-                description="Analyzing need for knowledge graph query", content=verdict
-            )
+            ProgressEvent(description="Analyzing need for knowledge graph query", content=verdict)
         )
 
         if verdict == "QUERY":
@@ -252,18 +246,16 @@ class DesignExpertWorkflow(Workflow):
     async def rewrite_query_for_retrieval(
         self, ctx: Context, ev: RewriteQueryForRetrieval
     ) -> QuerySearchResults | QueryVectorIndex | None:
-        user_query = await ctx.get("original_user_message", "")
+        user_query = await ctx.store.get("original_user_message", "")
         app_context = prompts.APP_CONTEXT_SNIPPET
-        highlighted_text = await ctx.get("highlighted_text", "")
-        artifact = await ctx.get("artifact")
-        web_search_enabled: bool = await ctx.get("web_search_enabled", False)
+        highlighted_text = await ctx.store.get("highlighted_text", "")
+        artifact = await ctx.store.get("artifact")
+        web_search_enabled: bool = await ctx.store.get("web_search_enabled", False)
 
         # ———————————————————————————————————————————————
         # Wrapping artifact into the prompt:
         if artifact:
-            artifact_snippet = prompts.ARTIFACT_SNIPPET.format(
-                artifact_content=artifact
-            )
+            artifact_snippet = prompts.ARTIFACT_SNIPPET.format(artifact_content=artifact)
         else:
             artifact_snippet = prompts.NO_ARTIFACT_SNIPPET
 
@@ -284,15 +276,13 @@ class DesignExpertWorkflow(Workflow):
         )
 
         class _NewQuery(BaseModel):
-            query: str
+            query: str | list[str]
 
         structured_llm = self.llm.as_structured_llm(output_cls=_NewQuery)
 
         response = structured_llm.complete(prompt)
 
-        response_object: _NewQuery = _NewQuery.model_validate_json(
-            json_data=response.text
-        )
+        response_object: _NewQuery = _NewQuery.model_validate_json(json_data=response.text)
 
         log(response.text, **self._log_defaults)
 
@@ -307,29 +297,43 @@ class DesignExpertWorkflow(Workflow):
         if web_search_enabled == True:
             retrieval_threads = retrieval_threads * 2
 
-        await ctx.set("retrieval_threads", retrieval_threads)
-        await ctx.set("retrieval_threads_completed", 0)
+        await ctx.store.set("retrieval_threads", retrieval_threads)
+        await ctx.store.set("retrieval_threads_completed", 0)
 
-        ctx.send_event(QueryVectorIndex(search_query=response_object.query))
+        ctx.send_event(
+            QueryVectorIndex(
+                search_query=(
+                    response_object.query[0]
+                    if isinstance(response_object.query, list)
+                    else response_object.query
+                )
+            )
+        )
         if web_search_enabled == True:
-            ctx.send_event(QuerySearchResults(search_query=response_object.query))
+            ctx.send_event(
+                QuerySearchResults(
+                    search_query=(
+                        response_object.query[0]
+                        if isinstance(response_object.query, list)
+                        else response_object.query
+                    )
+                )
+            )
 
         return None
 
     @step(num_workers=3)
-    async def query_vector_index(
-        self, ctx: Context, ev: QueryVectorIndex
-    ) -> PostprocessNodes:
+    async def query_vector_index(self, ctx: Context, ev: QueryVectorIndex) -> PostprocessNodes:
         """Query vector index"""
         search_query: str = ev.search_query
-        original_user_query = await ctx.get("original_user_message")
+        original_user_query = await ctx.store.get("original_user_message")
         log(f"started index query for '{search_query}'", **self._log_defaults)
         result_nodes: List[NodeWithScore] = []
 
         try:
             log(f"query={search_query}", **self._log_defaults)
             retriever = self.index.as_retriever(similarity_top_k=self.RETRIEVE_TOP_K)
-            result_nodes: List[NodeWithScore] = retriever.retrieve(search_query)
+            result_nodes = retriever.retrieve(search_query)
             log(
                 f"returned {len(result_nodes)} nodes for '{search_query}'",
                 **self._log_defaults,
@@ -341,21 +345,15 @@ class DesignExpertWorkflow(Workflow):
                 **self._log_defaults,
             )
         finally:
-            retrieval_threads_completed: int = await ctx.get(
-                "retrieval_threads_completed"
-            )
-            await ctx.set(
-                "retrieval_threads_completed", retrieval_threads_completed + 1
-            )
+            retrieval_threads_completed: int = await ctx.store.get("retrieval_threads_completed")
+            await ctx.store.set("retrieval_threads_completed", retrieval_threads_completed + 1)
             return PostprocessNodes(nodes=result_nodes, query=ev.search_query)
 
     @step(num_workers=3)
-    async def query_search_results(
-        self, ctx: Context, ev: QuerySearchResults
-    ) -> PostprocessNodes:
+    async def query_search_results(self, ctx: Context, ev: QuerySearchResults) -> PostprocessNodes:
         """Retrieve and query search results"""
         search_query: str = ev.search_query
-        original_user_query = await ctx.get("original_user_message")
+        original_user_query = await ctx.store.get("original_user_message")
         log(f"started search results query for '{search_query}'", **self._log_defaults)
         result_nodes: List[NodeWithScore] = []
         try:
@@ -373,7 +371,7 @@ class DesignExpertWorkflow(Workflow):
             retriever = index.as_retriever(
                 verbose=False, similarity_top_k=self.SEARCH_RESULTS_TOP_K
             )
-            result_nodes: List[NodeWithScore] = retriever.retrieve(original_user_query)
+            result_nodes = retriever.retrieve(original_user_query)
             log(f"dispatched {len(result_nodes)} nodes", **self._log_defaults)
 
         except Exception as error:
@@ -382,22 +380,16 @@ class DesignExpertWorkflow(Workflow):
                 **self._log_defaults,
             )
         finally:
-            retrieval_threads_completed: int = await ctx.get(
-                "retrieval_threads_completed"
-            )
-            await ctx.set(
-                "retrieval_threads_completed", retrieval_threads_completed + 1
-            )
+            retrieval_threads_completed: int = await ctx.store.get("retrieval_threads_completed")
+            await ctx.store.set("retrieval_threads_completed", retrieval_threads_completed + 1)
             return PostprocessNodes(nodes=result_nodes, query=ev.search_query)
 
     @step
-    async def postprocess_nodes(
-        self, ctx: Context, ev: PostprocessNodes
-    ) -> GeneratePath | None:
+    async def postprocess_nodes(self, ctx: Context, ev: PostprocessNodes) -> GeneratePath | None:
         """Node postprocessing: similarity cutoff and long context reorder. Optionally: add reranking"""
 
-        retrieval_threads: int = await ctx.get("retrieval_threads")
-        retrieval_threads_completed: int = await ctx.get("retrieval_threads_completed")
+        retrieval_threads: int = await ctx.store.get("retrieval_threads")
+        retrieval_threads_completed: int = await ctx.store.get("retrieval_threads_completed")
         event_results = ctx.collect_events(ev, [PostprocessNodes] * retrieval_threads)
 
         if event_results is None:
@@ -417,7 +409,7 @@ class DesignExpertWorkflow(Workflow):
         )
 
         retrieval_query = ev.query
-        original_user_query = await ctx.get("original_user_message")
+        original_user_query = await ctx.store.get("original_user_message")
 
         similarity_cutoff_postprocessor = SimilarityPostprocessor(
             similarity_cutoff=self.POSTPROCESSING_SIMILARITY_CUTOFF
@@ -425,9 +417,7 @@ class DesignExpertWorkflow(Workflow):
         nodes_cutoff = similarity_cutoff_postprocessor.postprocess_nodes(all_nodes)
 
         long_context_reorder_postprocessor = LongContextReorder()
-        nodes_reordered = long_context_reorder_postprocessor.postprocess_nodes(
-            nodes_cutoff
-        )
+        nodes_reordered = long_context_reorder_postprocessor.postprocess_nodes(nodes_cutoff)
 
         log(
             f"Postprocessing ended: {len(nodes_reordered)}/{len(all_nodes)} returned",
@@ -440,11 +430,11 @@ class DesignExpertWorkflow(Workflow):
     async def generate_path(
         self, ctx: Context, ev: GeneratePath
     ) -> GenerateArtifact | UpdateArtifact | RewriteArtifact | RespondToQuery:
-        user_query = await ctx.get("original_user_message")
+        user_query = await ctx.store.get("original_user_message")
         app_context = prompts.APP_CONTEXT_SNIPPET
-        artifact = await ctx.get("artifact")
-        highlighted_text = await ctx.get("highlighted_text")
-        chat_history: List[Any] = await ctx.get("chat_history")
+        artifact = await ctx.store.get("artifact")
+        highlighted_text = await ctx.store.get("highlighted_text")
+        chat_history: List[Any] = await ctx.store.get("chat_history")
 
         # @TODO: Update artifact:
         if highlighted_text:
@@ -461,9 +451,7 @@ class DesignExpertWorkflow(Workflow):
             recent_messages_snippet = prompts.NO_RECENT_MESSAGES
 
         if artifact:
-            artifact_snipet = prompts.ARTIFACT_SNIPPET.format(
-                artifact_content=str(artifact)
-            )
+            artifact_snipet = prompts.ARTIFACT_SNIPPET.format(artifact_content=str(artifact))
             route_options_snippet = prompts.HAS_ARTIFACT_ROUTES
         else:
             artifact_snipet = prompts.NO_ARTIFACT_SNIPPET
@@ -517,10 +505,10 @@ class DesignExpertWorkflow(Workflow):
 
     @step
     async def generate_artifact(self, ctx: Context, ev: GenerateArtifact) -> StopEvent:
-        user_query = await ctx.get("original_user_message")
+        user_query = await ctx.store.get("original_user_message")
         app_context = prompts.APP_CONTEXT_SNIPPET
-        highlighted_text = await ctx.get("highlighted_text")
-        artifact = await ctx.get("artifact")
+        highlighted_text = await ctx.store.get("highlighted_text")
+        artifact = await ctx.store.get("artifact")
 
         ctx.write_event_to_stream(
             ProgressEvent(
@@ -544,16 +532,14 @@ class DesignExpertWorkflow(Workflow):
 
         response_gen = self.llm.stream_complete(prompt=prompt)
 
-        return StopEvent(
-            WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes)
-        )
+        return StopEvent(WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes))
 
     @step
     async def update_artifact(self, ctx: Context, ev: UpdateArtifact) -> StopEvent:
-        user_query = await ctx.get("original_user_message")
+        user_query = await ctx.store.get("original_user_message")
         app_context = prompts.APP_CONTEXT_SNIPPET
-        highlighted_text = await ctx.get("highlighted_text")
-        artifact = await ctx.get("artifact")
+        highlighted_text = await ctx.store.get("highlighted_text")
+        artifact = await ctx.store.get("artifact")
 
         ctx.write_event_to_stream(
             ProgressEvent(
@@ -577,16 +563,14 @@ class DesignExpertWorkflow(Workflow):
         log(f"Updating existing artifact", **self._log_defaults)
         response_gen = self.llm.stream_complete(prompt=prompt)
 
-        return StopEvent(
-            WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes)
-        )
+        return StopEvent(WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes))
 
     @step
     async def rewrite_artifact(self, ctx: Context, ev: RewriteArtifact) -> StopEvent:
-        user_query = await ctx.get("original_user_message")
+        user_query = await ctx.store.get("original_user_message")
         app_context = prompts.APP_CONTEXT_SNIPPET
-        artifact = await ctx.get("artifact")
-        artifact_id = await ctx.get("artifact_id")
+        artifact = await ctx.store.get("artifact")
+        artifact_id = await ctx.store.get("artifact_id")
 
         ctx.write_event_to_stream(
             ProgressEvent(
@@ -611,15 +595,13 @@ class DesignExpertWorkflow(Workflow):
 
         response_gen = self.llm.stream_complete(prompt=prompt)
 
-        return StopEvent(
-            WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes)
-        )
+        return StopEvent(WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes))
 
     @step
     async def respond_to_query(self, ctx: Context, ev: RespondToQuery) -> StopEvent:
         app_context = prompts.APP_CONTEXT_SNIPPET
-        user_query = await ctx.get("original_user_message")
-        chat_history = await ctx.get("chat_history")
+        user_query = await ctx.store.get("original_user_message")
+        chat_history = await ctx.store.get("chat_history")
 
         ctx.write_event_to_stream(
             ProgressEvent(
@@ -652,6 +634,4 @@ class DesignExpertWorkflow(Workflow):
 
         response_gen = self.llm.stream_complete(prompt=prompt)
 
-        return StopEvent(
-            WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes)
-        )
+        return StopEvent(WorkflowResult(async_response_gen=response_gen, nodes=ev.nodes))

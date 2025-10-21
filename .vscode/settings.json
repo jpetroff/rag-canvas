@@ -17,10 +17,10 @@
     100
   ],
   "editor.insertSpaces": true,
-  "python.linting.enabled": true,
+  "python.linting.enabled": false,
   "python.linting.pylintEnabled": true,
   "python.linting.pylintArgs": [
-    "--rcfile=app/.pylintrc"
+    "--rcfile=${workspaceFolder}/app/.pylintrc"
   ],
   "python.linting.lintOnSave": true,
   "python.defaultInterpreterPath": "./app/.venv/bin/python",
@@ -40,6 +40,7 @@
   "black-formatter.cwd": "${workspaceFolder}/app",
   "black-formatter.args": [
     "--config",
-    ".pylintrc"
-  ]
+    "${workspaceFolder}/app/.pylintrc"
+  ],
+  "pylint.cwd": "${workspaceFolder}/app"
 }

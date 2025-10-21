@@ -10,11 +10,14 @@ import qdrant_client
 from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.core.llms import LLM
+
 from llama_index.core.embeddings import BaseEmbedding
 from llama_index.core.callbacks import LlamaDebugHandler, CallbackManager
 from llama_index.llms.ollama import Ollama
+from llama_index.llms.openai_like import OpenAILike
 from llama_index.llms.gemini import Gemini
 from llama_index.embeddings.ollama import OllamaEmbedding
+from llama_index.embeddings.openai_like import OpenAILikeEmbedding
 from llama_index.core.embeddings.utils import EmbedType
 from llama_index.core.base.base_retriever import BaseRetriever
 from llama_index.core.base.base_query_engine import BaseQueryEngine
@@ -30,42 +33,62 @@ class DesignExpertWorkflowConfig(BaseModel):
         workflow_folder = path.dirname(__file__)
         env: Dict[str, Any] = dotenv.dotenv_values(workflow_folder + "/.env")
 
-        for env_key in [
-            "MODEL_ID",
-            "API_KEY",
-            "EMBEDDING_MODEL",
-            "OLLAMA_URI",
-            "VECTOR_STORAGE_URI",
-            "COLLECTION_NAME",
-        ]:
-            if env_key not in env.keys():
-                raise RuntimeError(
-                    f"{env_key} not provided in workflow `.env` config [DesignExpertWorkflow]"
-                )
+        # for env_key in [
+        #     "MODEL_ID",
+        #     "API_KEY",
+        #     "EMBEDDING_MODEL",
+        #     "OLLAMA_URI",
+        #     "VECTOR_STORAGE_URI",
+        #     "COLLECTION_NAME",
+        # ]:
+        #     if env_key not in env.keys():
+        #         raise RuntimeError(
+        #             f"{env_key} not provided in workflow `.env` config [DesignExpertWorkflow]"
+        #         )
 
-        llm = Gemini(
-            model=env.get("MODEL_ID", ""),
-            api_key=env.get("API_KEY", ""),
+        # llm = Gemini(
+        #     model=env.get("MODEL_ID", ""),
+        #     api_key=env.get("API_KEY", ""),
+        #     temperature=request.temperature or 0.1,
+        #     max_tokens=request.max_tokens or 3600,
+        # )
+
+        llm = OpenAILike(
+            model="gpt-oss-20b",
+            api_base="http://llama.intranet/v1",
+            api_key="~",
+            context_window=128000,
+            is_chat_model=True,
             temperature=request.temperature or 0.1,
-            max_tokens=request.max_tokens or 3600,
+            is_function_calling_model=False,
         )
 
-        client = qdrant_client.QdrantClient(url=env.get("VECTOR_STORAGE_URI", ""))
+        # client = qdrant_client.QdrantClient(url="http://192.168.88.195:6333/")
+        client = qdrant_client.QdrantClient(url="http://qdrant.intranet:80/")
 
-        embed_model = OllamaEmbedding(
-            model_name=env.get("EMBEDDING_MODEL", ""),
-            base_url=env.get("OLLAMA_URI", ""),
+        # embed_model = OllamaEmbedding(
+        #     model_name=env.get("EMBEDDING_MODEL", ""),
+        #     base_url=env.get("OLLAMA_URI", ""),
+        #     embed_batch_size=256,
+        # )
+
+        embed_model = OpenAILikeEmbedding(
+            model_name="mxbai-embed",
+            api_base="http://llama.intranet/v1",
+            api_key="~",
             embed_batch_size=256,
         )
 
         # llama_debug = LlamaDebugHandler(print_trace_on_end=True)
         # Settings.callback_manager = CallbackManager([llama_debug])
 
-        collection_name = (
-            request.knowledge[0].id
-            if request.knowledge and len(request.knowledge) > 0
-            else env.get("COLLECTION_NAME", None)
-        )
+        # collection_name = (
+        #     request.knowledge[0].id
+        #     if request.knowledge and len(request.knowledge) > 0
+        #     else env.get("COLLECTION_NAME", None)
+        # )
+
+        collection_name = "design_library_embeddings"
 
         if not collection_name:
             raise RuntimeError("VectoreStore collection is not provided")

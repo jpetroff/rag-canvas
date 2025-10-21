@@ -3,7 +3,6 @@ from fastapi import WebSocket
 from typing import Any, Optional, Dict
 import os
 
-from schemas.openai import shortuuid
 from llamaindex_workflows.design_expert.workflow import WorkflowResult
 from server_app import app
 from workflows.handler import WorkflowHandler
@@ -16,13 +15,7 @@ from llamaindex_workflows.design_expert import (
 )
 
 from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
-from langfuse import get_client, Langfuse
-from langfuse._client.span import LangfuseSpan
-import logging
-
-
-class API_OBSERVABILITY_SERVICE(str, Enum):
-    LANGFUSE = "langfuse"
+from phoenix.otel import register
 
 
 class CanvasApi:
@@ -31,37 +24,21 @@ class CanvasApi:
     ws_completion_endpoint: str = "completion"
 
     get_workflows_endpoint: str = "workflows"
-    observability: Optional[API_OBSERVABILITY_SERVICE]
-    observability_kwargs: Optional[Dict[str, Any]]
 
     instrumentor: Optional[LlamaIndexInstrumentor] = None
-    langfuse: Optional[Langfuse] = None
 
     def __init__(
         self,
-        prefix: str,
-        observability: Optional[API_OBSERVABILITY_SERVICE] = None,
-        observability_kwargs: Optional[Dict[str, Any]] = None,
+        prefix: str
     ):
         self.prefix = prefix
-        self.observability = observability
-        self.observability_kwargs = observability_kwargs
 
-        if self.observability and self.observability_kwargs:
-            os.environ["LANGFUSE_PUBLIC_KEY"] = self.observability_kwargs["public_key"]
-            os.environ["LANGFUSE_SECRET_KEY"] = self.observability_kwargs["secret_key"]
-            os.environ["LANGFUSE_HOST"] = self.observability_kwargs["host"]
-            self.langfuse = get_client()
-            # Verify connection
-            if self.langfuse.auth_check():
-                print("Langfuse client is authenticated and ready!")
-            else:
-                print("Authentication failed. Please check your credentials and host.")
-
-            self.instrumentor = LlamaIndexInstrumentor(**self.observability_kwargs)
-            self.instrumentor.instrument()
-            langfuse_logger = logging.getLogger("langfuse")
-            langfuse_logger.setLevel("CRITICAL")
+        tracer_provider = register(
+            endpoint='http://phoenix.intranet/v1/traces',
+            project_name='Design RAG'
+        )
+        self.instrumentor = LlamaIndexInstrumentor()
+        self.instrumentor.instrument(tracer_provider=tracer_provider)
 
         app.add_websocket_route(
             path=self._merge_path(self.ws_completion_endpoint),
@@ -88,26 +65,13 @@ class CanvasApi:
             response = DefaultResponse(type="error", content=f"Unexpected error: {str(error)}")
             await websocket.send_json(response.dump())
         finally:
-            if (
-                self.instrumentor
-                and self.langfuse
-                and self.instrumentor.is_instrumented_by_opentelemetry
-            ):
-                self.langfuse.flush()
             await websocket.close()
 
     async def start_with_observability(self, websocket: WebSocket):
         assert self.instrumentor
-        assert self.langfuse
+        await self.completion(websocket)
 
-        # Create span context manager - Langfuse returns a proper context manager
-        # Note: Langfuse's start_as_current_span returns a context manager but linter can't detect it
-        span_context = self.langfuse.start_as_current_span(name=f"workflow-{shortuuid()}")
-        with span_context as trace:  # pylint: disable=not-context-manager
-            await self.completion(websocket, trace)
-        self.langfuse.flush()
-
-    async def completion(self, websocket: WebSocket, trace: Optional[LangfuseSpan] = None):
+    async def completion(self, websocket: WebSocket):
         try:
 
             request = await websocket.receive_json()
@@ -167,13 +131,13 @@ class CanvasApi:
                     type="completion.usage",
                     payload={
                         "generated_tokens": accumulated_response["generated_tokens"],
-                        "traceId": trace.trace_id if trace is not None else None,
+                        # "traceId": trace.trace_id if trace is not None else None,
                     },
                 ).model_dump()
             )
 
-            if trace:
-                trace.create_event(name="Generation.Complete", output=accumulated_response)
+            # if trace:
+                # trace.create_event(name="Generation.Complete", output=accumulated_response)
 
         except (ValueError, KeyError, TypeError) as exception:
             await websocket.send_json(
@@ -181,7 +145,7 @@ class CanvasApi:
                     type="error",
                     payload={
                         "error": f"Invalid request: {str(exception)}",
-                        "traceId": trace.id if trace is not None else None,
+                        # "traceId": trace.id if trace is not None else None,
                     },
                 ).dump()
             )
@@ -192,7 +156,7 @@ class CanvasApi:
                     type="error",
                     payload={
                         "error": f"Connection error: {str(exception)}",
-                        "traceId": trace.id if trace is not None else None,
+                        # "traceId": trace.id if trace is not None else None,
                     },
                 ).dump()
             )
@@ -203,7 +167,7 @@ class CanvasApi:
                     type="error",
                     payload={
                         "error": f"Unexpected error: {str(exception)}",
-                        "traceId": trace.id if trace is not None else None,
+                        # "traceId": trace.id if trace is not None else None,
                     },
                 ).dump()
             )
