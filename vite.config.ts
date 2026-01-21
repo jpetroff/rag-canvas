@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { defineConfig, Rollup } from 'vite'
+import { defineConfig, type Rollup } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
