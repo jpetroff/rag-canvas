@@ -10,8 +10,6 @@
     "preview": "bunx vite preview"
   },
   "dependencies": {
-    "@tiptap/pm": "^3.16.0",
-    "@tiptap/react": "^3.16.0",
     "@tiptap/core": "^3.16.0",
     "@tiptap/extension-blockquote": "^3.16.0",
     "@tiptap/extension-bold": "^3.16.0",
@@ -33,8 +31,11 @@
     "@tiptap/extension-strike": "^3.16.0",
     "@tiptap/extension-text": "^3.16.0",
     "@tiptap/extension-text-style": "^3.16.0",
+    "@tiptap/pm": "^3.16.0",
+    "@tiptap/react": "^3.16.0",
     "autoprefixer": "^10.4.23",
     "clsx": "^2.1.1",
+    "convex": "^1.31.5",
     "immer": "^11.1.3",
     "lodash": "^4.17.21",
     "postcss": "^8.5.6",

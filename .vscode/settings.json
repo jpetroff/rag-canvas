@@ -30,7 +30,8 @@
   "python.analysis.autoSearchPaths": true,
   "[javascript]": {
     "editor.tabSize": 2,
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[python]": {
     "editor.defaultFormatter": "ms-python.python",
