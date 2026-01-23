@@ -30,11 +30,10 @@ export default defineConfig({
     alias: {
       '@': path.resolve('./src'),
       '@components': path.resolve('./src/components'),
-      '@app-components': path.resolve('./src/app-components'),
+      '@fragments': path.resolve('./src/fragments'),
       '@pages': path.resolve('./src/pages'),
-      '@assets': path.resolve('./src/assets'),
-      '@store': path.resolve('./src/store'),
-      '@shared': path.resolve('./src/shared'),
+      '@utils': path.resolve('./src/utils'),
+      '@store': path.resolve('./src/store')
     },
   },
 })
