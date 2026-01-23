@@ -41,6 +41,7 @@ Ask first:
 ### Project structure
 - ./src contains all source code of the project
 - ./convex contains Convex server functions
+- ./convex/schema.ts contains backend information about database tables and it's schema to store user data
 - ./src/components should contain all shadcn + baseUI components
 - ./src/fragments should contain higher level components, widgets or mini-apps that are composed of basic components from shadcn + baseUI
 - ./src/pages should contain React router pages for this single-page application

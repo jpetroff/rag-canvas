@@ -8,7 +8,12 @@
  * @module
  */
 
-import type * as kv_config from "../kv_config.js";
+import type * as ai from "../ai.js";
+import type * as artifacts from "../artifacts.js";
+import type * as chats from "../chats.js";
+import type * as config from "../config.js";
+import type * as messages from "../messages.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +22,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  kv_config: typeof kv_config;
+  ai: typeof ai;
+  artifacts: typeof artifacts;
+  chats: typeof chats;
+  config: typeof config;
+  messages: typeof messages;
+  users: typeof users;
 }>;
 
 /**

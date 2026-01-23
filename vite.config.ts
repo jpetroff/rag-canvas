@@ -33,7 +33,8 @@ export default defineConfig({
       '@fragments': path.resolve('./src/fragments'),
       '@pages': path.resolve('./src/pages'),
       '@utils': path.resolve('./src/utils'),
-      '@store': path.resolve('./src/store')
+      '@store': path.resolve('./src/store'),
+      '@convex': path.resolve('./convex')
     },
   },
 })
