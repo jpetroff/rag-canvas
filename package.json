@@ -7,7 +7,8 @@
     "dev": "bunx vite",
     "build": "bunx tsc -b && bunx vite build",
     "lint": "bunx eslint .",
-    "preview": "bunx vite preview"
+    "preview": "bunx vite preview",
+    "convex": "NODE_TLS_REJECT_UNAUTHORIZED=0 bunx convex dev"
   },
   "dependencies": {
     "@tiptap/core": "^3.16.0",
