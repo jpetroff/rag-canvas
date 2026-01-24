@@ -78,6 +78,7 @@ interface CanvasState {
   createNewChat: (userId: Id<'users'>, title?: string) => Promise<Id<'chats'>>
   switchChat: (chatId: Id<'chats'>) => void
   updateChatTitle: (chatId: Id<'chats'>, title: string) => Promise<void>
+  initializeChats: (userId: Id<'users'>) => Promise<void>
 
   // Message actions
   loadMessages: (chatId: Id<'chats'>) => Promise<void>
@@ -177,6 +178,53 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (!currentChatId && chats.length > 0) {
         get().switchChat(chats[0]._id)
       }
+    } catch (error) {
+      set({ error: (error as Error).message, isLoadingChats: false })
+      throw error
+    }
+  },
+
+  // Initialize chats atomically - load existing chats or create new one if none exist
+  initializeChats: async (userId: Id<'users'>) => {
+    const { convexClient, currentChatId } = get()
+    if (!convexClient) throw new Error('Convex client not initialized')
+
+    set({ isLoadingChats: true, error: null })
+
+    try {
+      // Load existing chats
+      const chats = await convexClient.query(api.chats.list, { userId })
+      set({ chats })
+
+      if (chats.length > 0) {
+        // If we have existing chats but no current chat selected, select the most recent one
+        if (!currentChatId) {
+          const mostRecentChat = [...chats].sort(
+            (a, b) => b._creationTime - a._creationTime
+          )[0]
+          get().switchChat(mostRecentChat._id)
+        }
+      } else {
+        // If no chats exist, create a new one
+        const chatId = await convexClient.mutation(api.chats.create, {
+          title: 'New Chat',
+          userId,
+        })
+
+        // Update local state with the new chat
+        const newChat: Chat = {
+          _id: chatId,
+          title: 'New Chat',
+          user: userId,
+          _creationTime: Date.now(),
+        }
+        set({ chats: [newChat] })
+
+        // Switch to the new chat
+        get().switchChat(chatId)
+      }
+
+      set({ isLoadingChats: false })
     } catch (error) {
       set({ error: (error as Error).message, isLoadingChats: false })
       throw error

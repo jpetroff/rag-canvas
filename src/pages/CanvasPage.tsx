@@ -10,25 +10,17 @@ export function CanvasPage() {
     userId,
     currentArtifact,
     currentChatId,
-    chats,
-    loadChats,
-    createNewChat,
+    initializeChats,
     updateArtifactContent,
+    createNewChat
   } = useCanvasStore()
 
-  // Load chats when component mounts
+  // Initialize chats atomically when component mounts
   useEffect(() => {
-    if (userId) {
-      loadChats(userId).catch(console.error)
+    if (userId && !currentChatId) {
+      initializeChats(userId).catch(console.error)
     }
-  }, [userId, loadChats])
-
-  // Create initial chat if none exist
-  useEffect(() => {
-    if (userId && chats.length === 0 && !currentChatId) {
-      createNewChat(userId, 'New Chat').catch(console.error)
-    }
-  }, [userId, chats.length, currentChatId, createNewChat])
+  }, [userId, currentChatId, initializeChats])
 
   const handleNewChat = async () => {
     if (!userId) return
