@@ -1,6 +1,4 @@
 import { useState, useRef, useEffect } from 'react'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@convex/_generated/api'
 import type { Id } from '@convex/_generated/dataModel'
 import { Button } from '@/components/Button'
 import { Input } from '@/components/Input'
@@ -9,120 +7,49 @@ import { Card, CardContent } from '@/components/Card'
 import { useCanvasStore } from '@/store/canvasStore'
 import { Send, Pencil, Check, X } from 'lucide-react'
 
-interface ChatSidebarProps {
-  chatId: Id<'chats'> | null
-  userId: Id<'users'>
-}
-
-export function ChatSidebar({ chatId, userId }: ChatSidebarProps) {
+export function ChatSidebar() {
   const [input, setInput] = useState('')
-  const [artifactToLoad, setArtifactToLoad] = useState<Id<'artifacts'> | null>(
-    null
-  )
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editedTitle, setEditedTitle] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
   const {
+    currentChatId,
+    currentChat,
     messages,
-    setMessages,
-    addMessage,
-    setCurrentArtifact,
-    setCurrentChat,
-    setCurrentChatData,
+    chats,
+    isSendingMessage,
+    sendMessage,
+    switchChat,
+    updateChatTitle,
+    loadArtifact,
   } = useCanvasStore()
-
-  const generateArtifact = useMutation(api.ai.generateArtifact)
-  const createMessage = useMutation(api.messages.create)
-  const updateChatTitle = useMutation(api.chats.updateTitle)
-  const chatsQuery = useQuery(api.chats.list, { userId })
-  const messagesQuery = useQuery(
-    api.messages.listByChat,
-    chatId ? { chatId } : 'skip'
-  )
-  const artifactQuery = useQuery(
-    api.artifacts.get,
-    artifactToLoad ? { artifactId: artifactToLoad } : 'skip'
-  )
-
-  // Load artifact when query completes
-  useEffect(() => {
-    if (artifactQuery && artifactToLoad) {
-      setCurrentArtifact(artifactToLoad, artifactQuery as any)
-    }
-  }, [artifactQuery, artifactToLoad, setCurrentArtifact])
-
-  const handleLoadArtifact = (artifactId: Id<'artifacts'>) => {
-    // Trigger artifact fetch by setting state
-    setArtifactToLoad(artifactId)
-  }
-
-  // Sync messages from query
-  useEffect(() => {
-    if (messagesQuery) {
-      setMessages(messagesQuery)
-    }
-  }, [messagesQuery, setMessages])
 
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  const handleLoadArtifact = async (artifactId: Id<'artifacts'>) => {
+    try {
+      await loadArtifact(artifactId)
+    } catch (error) {
+      console.error('Error loading artifact:', error)
+    }
+  }
+
   const handleSend = async () => {
-    if (!input.trim() || !chatId) return
+    if (!input.trim() || !currentChatId || isSendingMessage) return
 
     const userMessageContent = input.trim()
     setInput('')
 
-    // Create user message
-    const userMessageId = await createMessage({
-      content: userMessageContent,
-      chatId,
-      metadata: { role: 'user' },
-    })
-
-    // Add user message to store (optimistic update)
-    addMessage({
-      _id: userMessageId,
-      content: userMessageContent,
-      has_artifact: null,
-      metadata: { role: 'user' },
-      from_chat: chatId,
-      _creationTime: Date.now(),
-    } as any)
-
-    // Generate artifact (mock AI response)
     try {
-      const result = await generateArtifact({
-        userMessage: userMessageContent,
-        chatId,
-      })
-
-      // The generateArtifact function creates the assistant message and artifact
-      // We need to refetch messages to get the updated list
-      // For now, we'll add the assistant message optimistically
-      if (result) {
-        addMessage({
-          _id: result.messageId,
-          content: result.content,
-          has_artifact: result.artifactId,
-          metadata: { role: 'assistant' },
-          from_chat: chatId,
-          _creationTime: Date.now(),
-        } as any)
-
-        // Set the artifact as current
-        setCurrentArtifact(result.artifactId, {
-          _id: result.artifactId,
-          title: result.artifact.title,
-          content: result.artifact.content,
-          from_message: result.messageId,
-          from_chat: chatId,
-          _creationTime: Date.now(),
-        } as any)
-      }
+      await sendMessage(currentChatId, userMessageContent)
     } catch (error) {
-      console.error('Error generating artifact:', error)
+      console.error('Error sending message:', error)
+      // Restore input on error
+      setInput(userMessageContent)
     }
   }
 
@@ -135,44 +62,23 @@ export function ChatSidebar({ chatId, userId }: ChatSidebarProps) {
 
   const handleChatChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedChatId = e.target.value as Id<'chats'>
-    if (selectedChatId && chatsQuery) {
-      const selectedChat = chatsQuery.find(
-        (chat) => chat._id === selectedChatId
-      )
-      if (selectedChat) {
-        setCurrentChat(selectedChatId)
-        setCurrentChatData(selectedChat)
-      }
+    if (selectedChatId) {
+      switchChat(selectedChatId)
     }
   }
 
   const handleStartEditTitle = () => {
-    if (chatId && chatsQuery) {
-      const currentChat = chatsQuery.find((chat) => chat._id === chatId)
-      if (currentChat) {
-        setEditedTitle(currentChat.title)
-        setIsEditingTitle(true)
-      }
+    if (currentChat) {
+      setEditedTitle(currentChat.title)
+      setIsEditingTitle(true)
     }
   }
 
   const handleSaveTitle = async () => {
-    if (!chatId || !editedTitle.trim()) return
+    if (!currentChatId || !editedTitle.trim()) return
 
     try {
-      await updateChatTitle({
-        chatId,
-        title: editedTitle.trim(),
-      })
-
-      // Update local state
-      if (chatsQuery) {
-        const updatedChat = chatsQuery.find((chat) => chat._id === chatId)
-        if (updatedChat) {
-          setCurrentChatData({ ...updatedChat, title: editedTitle.trim() })
-        }
-      }
-
+      await updateChatTitle(currentChatId, editedTitle.trim())
       setIsEditingTitle(false)
     } catch (error) {
       console.error('Error updating chat title:', error)
@@ -227,13 +133,13 @@ export function ChatSidebar({ chatId, userId }: ChatSidebarProps) {
         ) : (
           <div className='flex gap-2 items-center'>
             <Select
-              value={chatId || ''}
+              value={currentChatId || ''}
               onChange={handleChatChange}
-              disabled={!chatsQuery || chatsQuery.length === 0}
+              disabled={chats.length === 0}
               className='flex-1'
             >
-              {!chatId && <option value=''>Select a chat</option>}
-              {chatsQuery?.map((chat) => (
+              {!currentChatId && <option value=''>Select a chat</option>}
+              {chats.map((chat) => (
                 <option key={chat._id} value={chat._id}>
                   {chat.title}
                 </option>
@@ -241,7 +147,7 @@ export function ChatSidebar({ chatId, userId }: ChatSidebarProps) {
             </Select>
             <Button
               onClick={handleStartEditTitle}
-              disabled={!chatId}
+              disabled={!currentChatId}
               size='sm'
               variant='outline'
               className='px-2'
@@ -291,11 +197,11 @@ export function ChatSidebar({ chatId, userId }: ChatSidebarProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder='Type your message...'
-            disabled={!chatId}
+            disabled={!currentChatId || isSendingMessage}
           />
           <Button
             onClick={handleSend}
-            disabled={!input.trim() || !chatId}
+            disabled={!input.trim() || !currentChatId || isSendingMessage}
             size='sm'
           >
             <Send className='h-4 w-4' />

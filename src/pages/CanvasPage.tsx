@@ -1,115 +1,57 @@
-import { useEffect, useRef, useCallback } from 'react'
-import { useMutation, useQuery } from 'convex/react'
-import { api } from '@convex/_generated/api'
-import type { Id } from '@convex/_generated/dataModel'
+import { useEffect } from 'react'
 import { ChatSidebar } from '@/fragments/ChatSidebar'
 import { RichTextEditor } from '@/fragments/RichTextEditor'
 import { useCanvasStore } from '@/store/canvasStore'
 import { Button } from '@/components/Button'
 import { Plus } from 'lucide-react'
 
-interface CanvasPageProps {
-  userId: Id<'users'>
-}
-
-export function CanvasPage({ userId }: CanvasPageProps) {
+export function CanvasPage() {
   const {
-    currentChatId,
-    currentArtifactId,
+    userId,
     currentArtifact,
+    currentChatId,
+    chats,
+    loadChats,
+    createNewChat,
     updateArtifactContent,
-    setCurrentChat,
-    setCurrentChatData,
-    setCurrentArtifact,
   } = useCanvasStore()
 
-  const lastArtifactIdRef = useRef<Id<'artifacts'> | null>(null)
-
-  const createChat = useMutation(api.chats.create)
-  const chatsQuery = useQuery(api.chats.list, { userId })
-  const updateArtifact = useMutation(api.artifacts.update)
-  const artifactQuery = useQuery(
-    api.artifacts.get,
-    currentArtifactId ? { artifactId: currentArtifactId } : 'skip'
-  )
-  const chatArtifactsQuery = useQuery(
-    api.artifacts.listByChat,
-    currentChatId ? { chatId: currentChatId } : 'skip'
-  )
-
-  // Load artifact when artifactId changes (switching artifacts)
-  // Don't update on content changes to prevent overwriting user edits
+  // Load chats when component mounts
   useEffect(() => {
-    if (artifactQuery && currentArtifactId) {
-      // Only update if we're switching to a different artifact
-      if (lastArtifactIdRef.current !== currentArtifactId) {
-        setCurrentArtifact(currentArtifactId, artifactQuery as any)
-        lastArtifactIdRef.current = currentArtifactId
-      }
+    if (userId) {
+      loadChats(userId).catch(console.error)
     }
-  }, [artifactQuery, currentArtifactId, setCurrentArtifact])
+  }, [userId, loadChats])
 
-  // Auto-load most recent artifact when chat changes
+  // Create initial chat if none exist
   useEffect(() => {
-    if (chatArtifactsQuery && chatArtifactsQuery.length > 0 && currentChatId) {
-      // Sort by creation time descending to get the most recent
-      const sortedArtifacts = [...chatArtifactsQuery].sort(
-        (a, b) => b._creationTime - a._creationTime
-      )
-      const mostRecentArtifact = sortedArtifacts[0]
-
-      // Only auto-load if we're not already viewing an artifact from this chat
-      const currentArtifactBelongsToChat =
-        currentArtifact && currentArtifact.from_chat === currentChatId
-
-      if (!currentArtifactBelongsToChat) {
-        setCurrentArtifact(mostRecentArtifact._id, mostRecentArtifact as any)
-        lastArtifactIdRef.current = mostRecentArtifact._id
-      }
+    if (userId && chats.length === 0 && !currentChatId) {
+      createNewChat(userId, 'New Chat').catch(console.error)
     }
-  }, [chatArtifactsQuery, currentChatId, currentArtifact, setCurrentArtifact])
+  }, [userId, chats.length, currentChatId, createNewChat])
 
-  const handleNewChat = useCallback(async () => {
-    const chatId = await createChat({
-      title: 'New Chat',
-      userId,
-    })
-    setCurrentChat(chatId)
-    // The chat will be added to the list via the query
-  }, [createChat, userId, setCurrentChat])
-
-  // Initialize with first chat or create one
-  useEffect(() => {
-    if (chatsQuery && chatsQuery.length > 0 && !currentChatId) {
-      const firstChat = chatsQuery[0]
-      setCurrentChat(firstChat._id)
-      setCurrentChatData(firstChat)
-    } else if (chatsQuery && chatsQuery.length === 0 && !currentChatId) {
-      // Create a new chat if none exist
-      handleNewChat()
+  const handleNewChat = async () => {
+    if (!userId) return
+    try {
+      await createNewChat(userId, 'New Chat')
+    } catch (error) {
+      console.error('Error creating chat:', error)
     }
-  }, [
-    chatsQuery,
-    currentChatId,
-    setCurrentChat,
-    setCurrentChatData,
-    handleNewChat,
-  ])
+  }
 
   const handleEditorChange = async (content: string) => {
     if (currentArtifact) {
-      updateArtifactContent(content)
-      // Save to backend
-      await updateArtifact({
-        artifactId: currentArtifact._id,
-        content,
-      })
+      try {
+        await updateArtifactContent(currentArtifact._id, content)
+      } catch (error) {
+        console.error('Error updating artifact:', error)
+      }
     }
   }
 
   return (
     <div className='flex h-screen w-screen overflow-hidden'>
-      <ChatSidebar chatId={currentChatId} userId={userId} />
+      <ChatSidebar />
       <div className='flex-1 flex flex-col'>
         <div className='h-12 border-b border-zinc-200 bg-white flex items-center justify-between px-4'>
           <h1 className='text-lg font-semibold'>
