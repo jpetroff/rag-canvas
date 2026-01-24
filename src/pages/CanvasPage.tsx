@@ -1,15 +1,15 @@
-import { useEffect } from "react";
-import { useMutation, useQuery } from "convex/react";
-import { api } from "@convex/_generated/api";
-import type { Id } from "@convex/_generated/dataModel";
-import { ChatSidebar } from "@/fragments/ChatSidebar";
-import { RichTextEditor } from "@/fragments/RichTextEditor";
-import { useCanvasStore } from "@/store/canvasStore";
-import { Button } from "@/components/Button";
-import { Plus } from "lucide-react";
+import { useEffect, useRef, useCallback } from 'react'
+import { useMutation, useQuery } from 'convex/react'
+import { api } from '@convex/_generated/api'
+import type { Id } from '@convex/_generated/dataModel'
+import { ChatSidebar } from '@/fragments/ChatSidebar'
+import { RichTextEditor } from '@/fragments/RichTextEditor'
+import { useCanvasStore } from '@/store/canvasStore'
+import { Button } from '@/components/Button'
+import { Plus } from 'lucide-react'
 
 interface CanvasPageProps {
-  userId: Id<"users">;
+  userId: Id<'users'>
 }
 
 export function CanvasPage({ userId }: CanvasPageProps) {
@@ -21,69 +21,106 @@ export function CanvasPage({ userId }: CanvasPageProps) {
     setCurrentChat,
     setCurrentChatData,
     setCurrentArtifact,
-  } = useCanvasStore();
+  } = useCanvasStore()
 
-  const createChat = useMutation(api.chats.create);
-  const chatsQuery = useQuery(api.chats.list, { userId });
-  const updateArtifact = useMutation(api.artifacts.update);
+  const lastArtifactIdRef = useRef<Id<'artifacts'> | null>(null)
+
+  const createChat = useMutation(api.chats.create)
+  const chatsQuery = useQuery(api.chats.list, { userId })
+  const updateArtifact = useMutation(api.artifacts.update)
   const artifactQuery = useQuery(
     api.artifacts.get,
-    currentArtifactId ? { artifactId: currentArtifactId } : "skip"
-  );
+    currentArtifactId ? { artifactId: currentArtifactId } : 'skip'
+  )
+  const chatArtifactsQuery = useQuery(
+    api.artifacts.listByChat,
+    currentChatId ? { chatId: currentChatId } : 'skip'
+  )
 
-  // Load artifact when artifactId changes
+  // Load artifact when artifactId changes (switching artifacts)
+  // Don't update on content changes to prevent overwriting user edits
   useEffect(() => {
     if (artifactQuery && currentArtifactId) {
-      setCurrentArtifact(currentArtifactId, artifactQuery as any);
+      // Only update if we're switching to a different artifact
+      if (lastArtifactIdRef.current !== currentArtifactId) {
+        setCurrentArtifact(currentArtifactId, artifactQuery as any)
+        lastArtifactIdRef.current = currentArtifactId
+      }
     }
-  }, [artifactQuery, currentArtifactId, setCurrentArtifact]);
+  }, [artifactQuery, currentArtifactId, setCurrentArtifact])
+
+  // Auto-load most recent artifact when chat changes
+  useEffect(() => {
+    if (chatArtifactsQuery && chatArtifactsQuery.length > 0 && currentChatId) {
+      // Sort by creation time descending to get the most recent
+      const sortedArtifacts = [...chatArtifactsQuery].sort(
+        (a, b) => b._creationTime - a._creationTime
+      )
+      const mostRecentArtifact = sortedArtifacts[0]
+
+      // Only auto-load if we're not already viewing an artifact from this chat
+      const currentArtifactBelongsToChat =
+        currentArtifact && currentArtifact.from_chat === currentChatId
+
+      if (!currentArtifactBelongsToChat) {
+        setCurrentArtifact(mostRecentArtifact._id, mostRecentArtifact as any)
+        lastArtifactIdRef.current = mostRecentArtifact._id
+      }
+    }
+  }, [chatArtifactsQuery, currentChatId, currentArtifact, setCurrentArtifact])
+
+  const handleNewChat = useCallback(async () => {
+    const chatId = await createChat({
+      title: 'New Chat',
+      userId,
+    })
+    setCurrentChat(chatId)
+    // The chat will be added to the list via the query
+  }, [createChat, userId, setCurrentChat])
 
   // Initialize with first chat or create one
   useEffect(() => {
     if (chatsQuery && chatsQuery.length > 0 && !currentChatId) {
-      const firstChat = chatsQuery[0];
-      setCurrentChat(firstChat._id);
-      setCurrentChatData(firstChat);
+      const firstChat = chatsQuery[0]
+      setCurrentChat(firstChat._id)
+      setCurrentChatData(firstChat)
     } else if (chatsQuery && chatsQuery.length === 0 && !currentChatId) {
       // Create a new chat if none exist
-      handleNewChat();
+      handleNewChat()
     }
-  }, [chatsQuery, currentChatId, setCurrentChat, setCurrentChatData]);
-
-  const handleNewChat = async () => {
-    const chatId = await createChat({
-      title: "New Chat",
-      userId,
-    });
-    setCurrentChat(chatId);
-    // The chat will be added to the list via the query
-  };
+  }, [
+    chatsQuery,
+    currentChatId,
+    setCurrentChat,
+    setCurrentChatData,
+    handleNewChat,
+  ])
 
   const handleEditorChange = async (content: string) => {
     if (currentArtifact) {
-      updateArtifactContent(content);
+      updateArtifactContent(content)
       // Save to backend
       await updateArtifact({
         artifactId: currentArtifact._id,
         content,
-      });
+      })
     }
-  };
+  }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
+    <div className='flex h-screen w-screen overflow-hidden'>
       <ChatSidebar chatId={currentChatId} userId={userId} />
-      <div className="flex-1 flex flex-col">
-        <div className="h-12 border-b border-zinc-200 bg-white flex items-center justify-between px-4">
-          <h1 className="text-lg font-semibold">
-            {currentArtifact?.title || "AI Canvas"}
+      <div className='flex-1 flex flex-col'>
+        <div className='h-12 border-b border-zinc-200 bg-white flex items-center justify-between px-4'>
+          <h1 className='text-lg font-semibold'>
+            {currentArtifact?.title || 'AI Canvas'}
           </h1>
-          <Button variant="ghost" size="sm" onClick={handleNewChat}>
-            <Plus className="h-4 w-4 mr-2" />
+          <Button variant='ghost' size='sm' onClick={handleNewChat}>
+            <Plus className='h-4 w-4 mr-2' />
             New Chat
           </Button>
         </div>
-        <div className="flex-1 p-4 overflow-hidden">
+        <div className='flex-1 p-4 overflow-hidden'>
           {currentArtifact ? (
             <RichTextEditor
               content={currentArtifact.content}
@@ -91,10 +128,10 @@ export function CanvasPage({ userId }: CanvasPageProps) {
               editable={true}
             />
           ) : (
-            <div className="h-full flex items-center justify-center text-zinc-500">
-              <div className="text-center">
-                <p className="text-lg mb-2">No document selected</p>
-                <p className="text-sm">
+            <div className='h-full flex items-center justify-center text-zinc-500'>
+              <div className='text-center'>
+                <p className='text-lg mb-2'>No document selected</p>
+                <p className='text-sm'>
                   Start a conversation in the chat to create a document
                 </p>
               </div>
@@ -103,5 +140,5 @@ export function CanvasPage({ userId }: CanvasPageProps) {
         </div>
       </div>
     </div>
-  );
+  )
 }
