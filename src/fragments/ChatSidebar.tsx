@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/select'
 import { Card, CardContent } from '@/components/Card'
 import { useCanvasStore } from '@/store/canvasStore'
-import { Send, Pencil, Check, X } from 'lucide-react'
+import { Send, Pencil, Check, X, Trash } from 'lucide-react'
+import { api } from '@convex/_generated/api'
 
 export function ChatSidebar() {
   const [input, setInput] = useState('')
@@ -29,6 +30,8 @@ export function ChatSidebar() {
     switchChat,
     updateChatTitle,
     loadArtifact,
+    userId,
+    loadChats,
   } = useCanvasStore()
 
   // Scroll to bottom when messages change
@@ -106,6 +109,30 @@ export function ChatSidebar() {
     }
   }
 
+  const handleDeleteChat = async () => {
+    if (!currentChatId || !userId) return
+
+    try {
+      // Get the convex client from the store
+      const convexClient = useCanvasStore.getState().convexClient
+      if (!convexClient) throw new Error('Convex client not initialized')
+
+      // Call the Convex mutation to delete chat with associated data
+      await convexClient.mutation(api.chats.removeWithAssociatedData, { chatId: currentChatId })
+      
+      // Reload chats to update the list
+      await loadChats(userId)
+      
+      // Clear current chat selection by switching to a different chat or clearing
+      const updatedChats = chats.filter(chat => chat._id !== currentChatId)
+      if (updatedChats.length > 0) {
+        switchChat(updatedChats[0]._id)
+      }
+    } catch (error) {
+      console.error('Error deleting chat:', error)
+    }
+  }
+
   return (
     <div className='flex flex-col h-full w-80 border-r border-zinc-200 bg-zinc-50'>
       <div className='p-4 border-b border-zinc-200 bg-white'>
@@ -170,6 +197,15 @@ export function ChatSidebar() {
               className='px-2'
             >
               <Pencil className='h-4 w-4' />
+            </Button>
+            <Button
+              onClick={handleDeleteChat}
+              disabled={!currentChatId}
+              size='sm'
+              variant='outline'
+              className='px-2'
+            >
+              <Trash className='h-4 w-4' />
             </Button>
           </div>
         )}
