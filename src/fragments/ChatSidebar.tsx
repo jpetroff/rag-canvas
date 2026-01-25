@@ -1,8 +1,14 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Id } from '@convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/Input'
-import { Select } from '@/components/Select'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select'
 import { Card, CardContent } from '@/components/Card'
 import { useCanvasStore } from '@/store/canvasStore'
 import { Send, Pencil, Check, X } from 'lucide-react'
@@ -60,9 +66,9 @@ export function ChatSidebar() {
     }
   }
 
-  const handleChatChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedChatId = e.target.value as Id<'chats'>
-    if (selectedChatId) {
+  const handleChatChange = (value: string | null) => {
+    if (value) {
+      const selectedChatId = value as Id<'chats'>
       switchChat(selectedChatId)
     }
   }
@@ -134,16 +140,27 @@ export function ChatSidebar() {
           <div className='flex gap-2 items-center'>
             <Select
               value={currentChatId || ''}
-              onChange={handleChatChange}
+              onValueChange={(value) => handleChatChange(value as string)}
               disabled={chats.length === 0}
-              className='flex-1'
             >
-              {!currentChatId && <option value=''>Select a chat</option>}
-              {chats.map((chat) => (
-                <option key={chat._id} value={chat._id}>
-                  {chat.title}
-                </option>
-              ))}
+              <SelectTrigger className='flex-1'>
+                <SelectValue placeholder='Select a chat'>
+                  {(value) => {
+                    const chat = chats.find(c => c._id === value)
+                    return chat ? chat.title : 'Select a chat'
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {!currentChatId && (
+                  <SelectItem value=''>Select a chat</SelectItem>
+                )}
+                {chats.map((chat) => (
+                  <SelectItem key={chat._id} value={chat._id}>
+                    {chat.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
             <Button
               onClick={handleStartEditTitle}
