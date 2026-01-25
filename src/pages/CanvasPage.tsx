@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { ChatSidebar } from '@/fragments/ChatSidebar'
 import { RichTextEditor } from '@/fragments/RichTextEditor'
 import { useCanvasStore } from '@/store/canvasStore'
-import { Button } from '@/components/Button'
+import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 
 export function CanvasPage() {
@@ -12,7 +12,7 @@ export function CanvasPage() {
     currentChatId,
     initializeChats,
     updateArtifactContent,
-    createNewChat
+    createNewChat,
   } = useCanvasStore()
 
   // Initialize chats atomically when component mounts

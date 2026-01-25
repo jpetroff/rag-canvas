@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Id } from '@convex/_generated/dataModel'
-import { Button } from '@/components/Button'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/Input'
 import { Select } from '@/components/Select'
 import { Card, CardContent } from '@/components/Card'
